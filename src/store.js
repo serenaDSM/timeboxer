@@ -25,6 +25,7 @@ export const useStore = create(
       cooldownUntil: 0,
       cooldownDuration: 30, // Default 30 mins
       parentPIN: '1234', // Default PIN
+      hasSeenOnboarding: false,
       earnTasks: defaultEarnTasks,
       spendTasks: defaultSpendTasks,
       
@@ -36,6 +37,7 @@ export const useStore = create(
       setDailyCap: (cap) => set({ dailyCap: cap }),
       setCooldownDuration: (mins) => set({ cooldownDuration: mins }),
       setParentPIN: (pin) => set({ parentPIN: pin }),
+      completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
       recordSpend: (minutesPlayed, minutesCost) => set((state) => {
         const todayStr = new Date().toISOString().split('T')[0];

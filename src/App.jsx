@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from './store';
 import Timer from './components/Timer';
+import Onboarding from './components/Onboarding';
 import { BookOpen, Dumbbell, Gamepad2, Tv, Battery, BatteryFull, Box, Pencil, Trash2, Star, Plus, Target, Lock, Settings } from 'lucide-react';
 
 const ICON_MAP = {
@@ -14,7 +15,8 @@ function App() {
     addEarnTask, updateEarnTask, deleteEarnTask,
     addSpendTask, updateSpendTask, deleteSpendTask,
     addMinutes, setDailyCap, dailyCap, todaySpent, lastSpentDate, cooldownUntil, recordSpend,
-    parentPIN, setParentPIN, cooldownDuration, setCooldownDuration
+    parentPIN, setParentPIN, cooldownDuration, setCooldownDuration,
+    hasSeenOnboarding, completeOnboarding
   } = useStore();
   
   const [activeTimer, setActiveTimer] = useState(null);
@@ -204,9 +206,11 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col font-sans">
-      
-      {/* Header: Balance */}
+    <>
+      {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
+      <div className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col font-sans">
+        
+        {/* Header: Balance */}
       <header className="flex flex-col items-center justify-center py-16 mb-12 border-b border-white/10 relative">
         <button onClick={handleChangePIN} className="absolute top-4 right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-white/5 border border-white/10 group">
           <Settings size={20} className="group-hover:rotate-90 transition-transform" />
@@ -371,6 +375,7 @@ function App() {
 
       </div>
     </div>
+    </>
   );
 }
 
