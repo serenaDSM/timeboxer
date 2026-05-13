@@ -208,13 +208,15 @@ function App() {
   return (
     <>
       {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
-      <div className="h-[100dvh] p-2 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full overflow-hidden">
+      <div className="h-[100dvh] p-2 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full overflow-hidden relative">
         
+        {/* Settings Gear */}
+        <button onClick={handleChangePIN} className="fixed top-4 right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-black/50 backdrop-blur-md border border-white/10 group z-50 shadow-lg">
+          <Settings size={20} className="group-hover:rotate-90 transition-transform" />
+        </button>
+
         {/* Header: Balance */}
       <header className="flex flex-col items-center justify-center py-4 mb-4 border-b border-white/10 relative shrink-0">
-        <button onClick={handleChangePIN} className="absolute top-0 right-0 md:top-4 md:right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-white/5 border border-white/10 group z-50">
-          <Settings size={18} className="group-hover:rotate-90 transition-transform" />
-        </button>
         <div className="flex items-center justify-center gap-3 mb-2">
           <Box size={32} strokeWidth={1.5} className="text-brand-green drop-shadow-[0_0_20px_rgba(57,255,20,0.6)] md:w-12 md:h-12" />
           <h1 className="text-3xl md:text-5xl font-black tracking-tighter italic leading-none">
@@ -264,7 +266,7 @@ function App() {
                 <div key={task.id} className="relative group flex items-center bg-white/5 hover:bg-white/10 transition-colors rounded-2xl border border-transparent hover:border-brand-green/30">
                   <button 
                     onClick={() => handleTaskClick(task.duration, task.reward)}
-                    className="flex-1 flex items-center justify-between p-5"
+                    className="flex-1 flex items-center justify-between p-4 md:p-5 pr-14 md:pr-5"
                   >
                     <div className="flex items-center gap-4">
                       <div className="bg-brand-green/10 p-3 rounded-xl text-brand-green group-hover:scale-110 transition-transform">
@@ -279,11 +281,11 @@ function App() {
                   </button>
                   
                   {/* Edit/Delete Controls */}
-                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => promptEditTask(task, 'earn')} className="bg-gray-800 text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-green">
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col md:flex-row gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => promptEditTask(task, 'earn')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-green">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => promptDeleteTask(task.id, 'earn')} className="bg-gray-800 text-gray-300 hover:text-red-500 p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
+                    <button onClick={() => promptDeleteTask(task.id, 'earn')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-red-500 p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -363,11 +365,11 @@ function App() {
                   </button>
 
                   {/* Edit/Delete Controls */}
-                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30">
-                    <button onClick={() => promptEditTask(task, 'spend')} className="bg-gray-800 text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30">
+                    <button onClick={() => promptEditTask(task, 'spend')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => promptDeleteTask(task.id, 'spend')} className="bg-gray-800 text-gray-300 hover:text-red-500 p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
+                    <button onClick={() => promptDeleteTask(task.id, 'spend')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-red-500 p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
                       <Trash2 size={14} />
                     </button>
                   </div>
