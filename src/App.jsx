@@ -271,7 +271,7 @@ function App() {
                   </button>
                   
                   {/* Edit/Delete Controls */}
-                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => promptEditTask(task, 'earn')} className="bg-gray-800 text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-green">
                       <Pencil size={14} />
                     </button>
@@ -317,7 +317,7 @@ function App() {
                     {actualTodaySpent} / {dailyCap}m
                   </span>
                 </div>
-                <button onClick={handleEditDailyCap} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-0 group-hover:opacity-100 z-30">
+                <button onClick={handleEditDailyCap} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
                   <Pencil size={14} />
                 </button>
               </div>
@@ -326,7 +326,7 @@ function App() {
                   <span className="text-gray-400">Eye Rest Cooldown:</span>
                   <span className="text-white font-mono font-bold">{cooldownDuration}m</span>
                 </div>
-                <button onClick={handleEditCooldown} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-0 group-hover:opacity-100 z-30">
+                <button onClick={handleEditCooldown} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
                   <Pencil size={14} />
                 </button>
               </div>
@@ -355,7 +355,7 @@ function App() {
                   </button>
 
                   {/* Edit/Delete Controls */}
-                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                  <div className="absolute -right-3 -top-3 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30">
                     <button onClick={() => promptEditTask(task, 'spend')} className="bg-gray-800 text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
                       <Pencil size={14} />
                     </button>
