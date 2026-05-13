@@ -208,52 +208,56 @@ function App() {
   return (
     <>
       {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
-      <div className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col font-sans">
+      <div className="h-[100dvh] p-2 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full overflow-hidden">
         
         {/* Header: Balance */}
-      <header className="flex flex-col items-center justify-center py-16 mb-12 border-b border-white/10 relative">
-        <button onClick={handleChangePIN} className="absolute top-4 right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-white/5 border border-white/10 group">
-          <Settings size={20} className="group-hover:rotate-90 transition-transform" />
+      <header className="flex flex-col items-center justify-center py-4 mb-4 border-b border-white/10 relative shrink-0">
+        <button onClick={handleChangePIN} className="absolute top-0 right-0 md:top-4 md:right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-white/5 border border-white/10 group z-50">
+          <Settings size={18} className="group-hover:rotate-90 transition-transform" />
         </button>
-        <div className="relative group mb-4 flex items-center justify-center">
-          <Box size={80} strokeWidth={1.5} className="text-brand-green drop-shadow-[0_0_20px_rgba(57,255,20,0.6)]" />
-        </div>
-        <h1 className="text-6xl sm:text-7xl font-black tracking-tighter italic text-center leading-none">
-          <span className="text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-500 drop-shadow-[0_2px_15px_rgba(255,255,255,0.4)]">TIME</span>
-          <span className="text-brand-green drop-shadow-[0_0_25px_rgba(57,255,20,0.8)] ml-2">BOXER</span>
-        </h1>
-        <div className="flex items-center gap-4 mt-8">
-          {availableMinutes > 0 ? <BatteryFull size={48} className="text-brand-green" /> : <Battery size={48} className="text-gray-600" />}
-          <div className={`text-7xl font-bold font-mono tracking-tighter ${availableMinutes > 0 ? 'text-brand-green drop-shadow-[0_0_15px_rgba(57,255,20,0.4)]' : 'text-gray-500'}`}>
-            {availableMinutes}
-          </div>
-          <span className="text-2xl text-gray-500 mt-6 font-bold">MIN</span>
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <Box size={32} strokeWidth={1.5} className="text-brand-green drop-shadow-[0_0_20px_rgba(57,255,20,0.6)] md:w-12 md:h-12" />
+          <h1 className="text-3xl md:text-5xl font-black tracking-tighter italic leading-none">
+            <span className="text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-500 drop-shadow-[0_2px_15px_rgba(255,255,255,0.4)]">TIME</span>
+            <span className="text-brand-green drop-shadow-[0_0_25px_rgba(57,255,20,0.8)] ml-1">BOXER</span>
+          </h1>
         </div>
         
-        {/* Data Statistics */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 text-right text-sm text-gray-400 bg-white/5 p-4 rounded-2xl hidden md:block">
-          <div className="mb-1 uppercase text-xs tracking-widest opacity-60">All Time Stats</div>
-          <div>Total Earned: <span className="text-brand-green font-mono font-bold">{totalEarned}</span>m</div>
-          <div>Total Spent: <span className="text-brand-red font-mono font-bold">{totalSpent}</span>m</div>
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="flex items-center gap-2">
+            {availableMinutes > 0 ? <BatteryFull size={32} className="text-brand-green" /> : <Battery size={32} className="text-gray-600" />}
+            <div className={`text-4xl md:text-6xl font-bold font-mono tracking-tighter ${availableMinutes > 0 ? 'text-brand-green drop-shadow-[0_0_15px_rgba(57,255,20,0.4)]' : 'text-gray-500'}`}>
+              {availableMinutes}
+            </div>
+            <span className="text-lg md:text-2xl text-gray-500 mt-2 md:mt-4 font-bold">MIN</span>
+          </div>
+          
+          {/* Data Statistics */}
+          <div className="flex md:absolute right-0 top-1/2 md:-translate-y-1/2 text-center md:text-right text-xs md:text-sm text-gray-400 bg-white/5 p-2 md:p-3 rounded-xl border border-white/10">
+            <div className="mb-1 uppercase text-[10px] md:text-xs tracking-widest opacity-60">All Time Stats</div>
+            <div className="flex md:block gap-4">
+              <div>Earned: <span className="text-brand-green font-mono font-bold">{totalEarned}</span>m</div>
+              <div>Spent: <span className="text-brand-red font-mono font-bold">{totalSpent}</span>m</div>
+            </div>
+          </div>
         </div>
       </header>
-
       {/* Main Zones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 flex-1 min-h-0 pb-2 md:pb-0">
         
         {/* EARN ZONE */}
-        <section className="bg-bg-panel rounded-3xl p-8 border border-white/5 flex flex-col relative">
-          <div className="flex items-center justify-between mb-8">
+        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative h-full">
+          <div className="flex items-center justify-between mb-4 md:mb-6 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-brand-green shadow-[0_0_10px_#39FF14]"></div>
-              <h2 className="text-2xl font-bold tracking-wide">EARN TIME</h2>
+              <h2 className="text-xl md:text-2xl font-bold tracking-wide">EARN TIME</h2>
             </div>
             <button onClick={() => handleAddTask('earn')} className="text-brand-green hover:bg-brand-green/20 p-2 rounded-full transition-colors">
-              <Plus size={24} />
+              <Plus size={20} className="md:w-6 md:h-6" />
             </button>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 overflow-y-auto pr-2 pb-4 flex-1">
             {(earnTasks || []).map(task => {
               const IconComp = ICON_MAP[task.icon] || ICON_MAP.Star;
               return (
@@ -290,54 +294,54 @@ function App() {
         </section>
 
         {/* SPEND ZONE */}
-        <section className="bg-bg-panel rounded-3xl p-8 border border-white/5 flex flex-col relative">
+        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative h-full">
           
           {/* Spend Cooldown Overlay */}
           {isCoolingDown && (
-            <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center border border-red-500/30">
+            <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm rounded-3xl flex flex-col items-center justify-center border border-red-500/30">
               <Lock size={48} className="text-red-500 mb-4 animate-pulse" />
               <div className="text-red-500 font-bold text-xl tracking-widest uppercase">EYE REST COOLDOWN</div>
               <div className="text-red-500 font-mono text-3xl font-bold mt-2">{formatCooldown(cooldownRemaining)}</div>
             </div>
           )}
 
-          <div className="flex flex-col mb-8">
-            <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col mb-4 md:mb-6 shrink-0">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-brand-red shadow-[0_0_10px_#FF073A]"></div>
-                <h2 className="text-2xl font-bold tracking-wide">SPEND TIME</h2>
+                <h2 className="text-xl md:text-2xl font-bold tracking-wide">SPEND TIME</h2>
               </div>
               <button onClick={() => handleAddTask('spend')} className="text-brand-red hover:bg-brand-red/20 p-2 rounded-full transition-colors z-30">
-                <Plus size={24} />
+                <Plus size={20} className="md:w-6 md:h-6" />
               </button>
             </div>
             
             {/* Daily Cap & Cooldown Info */}
-            <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex flex-col gap-3">
+            <div className="bg-white/5 p-2 md:p-3 rounded-xl border border-white/10 flex flex-col gap-2">
               <div className="flex items-center justify-between group">
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-xs md:text-sm">
                   <span className="text-gray-400">Daily Screen Limit:</span>
                   <span className={`font-mono font-bold ${actualTodaySpent >= dailyCap ? 'text-red-500' : 'text-white'}`}>
                     {actualTodaySpent} / {dailyCap}m
                   </span>
                 </div>
                 <button onClick={handleEditDailyCap} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
-                  <Pencil size={14} />
+                  <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
                 </button>
               </div>
               <div className="flex items-center justify-between group">
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-xs md:text-sm">
                   <span className="text-gray-400">Eye Rest Cooldown:</span>
                   <span className="text-white font-mono font-bold">{cooldownDuration}m</span>
                 </div>
                 <button onClick={handleEditCooldown} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
-                  <Pencil size={14} />
+                  <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 overflow-y-auto pr-2 pb-4 flex-1 content-start">
             {(spendTasks || []).map(task => {
               const IconComp = ICON_MAP[task.icon] || ICON_MAP.Star;
               const hitLimit = actualTodaySpent + task.duration > dailyCap;
