@@ -140,8 +140,8 @@ function App() {
       alert("Invalid input!");
       return;
     }
-    if (parsedDuration <= 0) {
-      alert("Duration must be at least 1 minute!");
+    if (parsedDuration < 10) {
+      alert("Duration must be at least 10 minutes!");
       return;
     }
     if (parsedDuration > 180) {
@@ -188,8 +188,8 @@ function App() {
       alert("Invalid duration or reward!");
       return;
     }
-    if (parsedDuration <= 0) {
-      alert("Duration must be at least 1 minute!");
+    if (parsedDuration < 10) {
+      alert("Duration must be at least 10 minutes!");
       return;
     }
     if (parsedDuration > 180) {
