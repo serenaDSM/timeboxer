@@ -38,6 +38,14 @@ export const useStore = create(
       setCooldownDuration: (mins) => set({ cooldownDuration: mins }),
       setParentPIN: (pin) => set({ parentPIN: pin }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
+      resetAllData: () => set({
+        availableMinutes: 0,
+        totalEarned: 0,
+        totalSpent: 0,
+        todaySpent: 0,
+        lastSpentDate: '',
+        cooldownUntil: 0,
+      }),
 
       recordSpend: (minutesPlayed, minutesCost, triggerCooldown = true) => set((state) => {
         const todayStr = new Date().toISOString().split('T')[0];

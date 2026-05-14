@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useStore } from './store';
 import Timer from './components/Timer';
 import Onboarding from './components/Onboarding';
-import { BookOpen, Dumbbell, Gamepad2, Tv, Battery, BatteryFull, Box, Pencil, Trash2, Star, Plus, Target, Lock, Settings } from 'lucide-react';
+import { BookOpen, Dumbbell, Gamepad2, Tv, Battery, BatteryFull, Box, Pencil, Trash2, Star, Plus, Target, Lock, Settings, RotateCcw } from 'lucide-react';
 
 const ICON_MAP = {
   BookOpen, Dumbbell, Gamepad2, Tv, Star, Target
@@ -16,7 +16,7 @@ function App() {
     addSpendTask, updateSpendTask, deleteSpendTask,
     addMinutes, setDailyCap, dailyCap, todaySpent, lastSpentDate, cooldownUntil, recordSpend,
     parentPIN, setParentPIN, cooldownDuration, setCooldownDuration,
-    hasSeenOnboarding, completeOnboarding
+    hasSeenOnboarding, completeOnboarding, resetAllData
   } = useStore();
   
   const [activeTimer, setActiveTimer] = useState(null);
@@ -121,6 +121,14 @@ function App() {
     if (newPin && newPin.trim().length > 0) {
       setParentPIN(newPin.trim());
       alert("密码修改成功 (PIN successfully updated)!");
+    }
+  };
+
+  const handleResetData = () => {
+    if (!requirePIN()) return;
+    if (window.confirm("⚠️ 确认清零所有时间数据？\n（余额、统计、冷却期将全部归零，任务列表和设置不受影响）")) {
+      resetAllData();
+      alert("✅ 所有时间数据已清零！");
     }
   };
 
@@ -234,10 +242,15 @@ function App() {
       {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
       <div className="min-h-[100dvh] md:h-[100dvh] p-3 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full md:overflow-hidden relative">
         
-        {/* Settings Gear */}
-        <button onClick={handleChangePIN} className="fixed top-4 right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-black/50 backdrop-blur-md border border-white/10 group z-50 shadow-lg">
-          <Settings size={20} className="group-hover:rotate-90 transition-transform" />
-        </button>
+        {/* Settings Buttons */}
+        <div className="fixed top-4 right-4 flex gap-2 z-50">
+          <button onClick={handleResetData} className="text-gray-500 hover:text-red-500 p-2 rounded-full transition-colors bg-black/50 backdrop-blur-md border border-white/10 group shadow-lg" title="Reset All Data">
+            <RotateCcw size={18} className="group-hover:rotate-180 transition-transform duration-500" />
+          </button>
+          <button onClick={handleChangePIN} className="text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-black/50 backdrop-blur-md border border-white/10 group shadow-lg" title="Change PIN">
+            <Settings size={20} className="group-hover:rotate-90 transition-transform" />
+          </button>
+        </div>
 
         {/* Header: Balance */}
       <header className="flex flex-col items-center justify-center py-4 mb-4 border-b border-white/10 relative shrink-0">
