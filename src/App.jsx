@@ -208,7 +208,7 @@ function App() {
   return (
     <>
       {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
-      <div className="h-[100dvh] p-2 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full overflow-hidden relative">
+      <div className="min-h-[100dvh] md:h-[100dvh] p-3 md:p-6 max-w-6xl mx-auto flex flex-col font-sans w-full md:overflow-hidden relative">
         
         {/* Settings Gear */}
         <button onClick={handleChangePIN} className="fixed top-4 right-4 text-gray-500 hover:text-white p-2 rounded-full transition-colors bg-black/50 backdrop-blur-md border border-white/10 group z-50 shadow-lg">
@@ -235,7 +235,7 @@ function App() {
           </div>
           
           {/* Data Statistics */}
-          <div className="flex md:absolute right-0 top-1/2 md:-translate-y-1/2 text-center md:text-right text-xs md:text-sm text-gray-400 bg-white/5 p-2 md:p-3 rounded-xl border border-white/10">
+          <div className="flex flex-col items-center md:items-end md:absolute right-0 top-1/2 md:-translate-y-1/2 text-center md:text-right text-xs md:text-sm text-gray-400 bg-white/5 p-2 md:p-3 rounded-xl border border-white/10 mt-2 md:mt-0">
             <div className="mb-1 uppercase text-[10px] md:text-xs tracking-widest opacity-60">All Time Stats</div>
             <div className="flex md:block gap-4">
               <div>Earned: <span className="text-brand-green font-mono font-bold">{totalEarned}</span>m</div>
@@ -245,10 +245,10 @@ function App() {
         </div>
       </header>
       {/* Main Zones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 flex-1 min-h-0 pb-2 md:pb-0">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 flex-1 md:min-h-0 pb-6 md:pb-0">
         
         {/* EARN ZONE */}
-        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative h-full">
+        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative md:h-full">
           <div className="flex items-center justify-between mb-4 md:mb-6 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-brand-green shadow-[0_0_10px_#39FF14]"></div>
@@ -259,7 +259,7 @@ function App() {
             </button>
           </div>
 
-          <div className="flex flex-col gap-3 overflow-y-auto pr-2 pb-4 flex-1">
+          <div className="flex flex-col gap-3 md:overflow-y-auto md:pr-2 pb-4 flex-1">
             {(earnTasks || []).map(task => {
               const IconComp = ICON_MAP[task.icon] || ICON_MAP.Star;
               return (
@@ -296,7 +296,7 @@ function App() {
         </section>
 
         {/* SPEND ZONE */}
-        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative h-full">
+        <section className="bg-bg-panel rounded-3xl p-4 md:p-6 border border-white/5 flex flex-col relative md:h-full">
           
           {/* Spend Cooldown Overlay */}
           {isCoolingDown && (
@@ -343,7 +343,7 @@ function App() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 overflow-y-auto pr-2 pb-4 flex-1 content-start">
+          <div className="grid grid-cols-2 gap-3 md:overflow-y-auto md:pr-2 pb-4 flex-1 content-start">
             {(spendTasks || []).map(task => {
               const IconComp = ICON_MAP[task.icon] || ICON_MAP.Star;
               const hitLimit = actualTodaySpent + task.duration > dailyCap;
