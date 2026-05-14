@@ -140,8 +140,16 @@ function App() {
       alert("Invalid input!");
       return;
     }
+    if (parsedDuration <= 0) {
+      alert("Duration must be at least 1 minute!");
+      return;
+    }
     if (parsedDuration > 180) {
       alert("Duration cannot exceed 180 minutes!");
+      return;
+    }
+    if (type === 'earn' && parsedReward > parsedDuration) {
+      alert("Earn reward cannot exceed task duration! (reward ≤ duration)");
       return;
     }
 
@@ -180,8 +188,16 @@ function App() {
       alert("Invalid duration or reward!");
       return;
     }
+    if (parsedDuration <= 0) {
+      alert("Duration must be at least 1 minute!");
+      return;
+    }
     if (parsedDuration > 180) {
       alert("Duration cannot exceed 180 minutes!");
+      return;
+    }
+    if (type === 'earn' && parsedReward > parsedDuration) {
+      alert("Earn reward cannot exceed task duration! (reward ≤ duration)");
       return;
     }
 
