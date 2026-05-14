@@ -23,7 +23,7 @@ export const useStore = create(
       todaySpent: 0,
       lastSpentDate: '',
       cooldownUntil: 0,
-      cooldownDuration: 30, // Default 30 mins
+      cooldownDuration: 20, // Default 20 mins
       parentPIN: '1234', // Default PIN
       hasSeenOnboarding: false,
       earnTasks: defaultEarnTasks,
@@ -39,7 +39,7 @@ export const useStore = create(
       setParentPIN: (pin) => set({ parentPIN: pin }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
 
-      recordSpend: (minutesPlayed, minutesCost) => set((state) => {
+      recordSpend: (minutesPlayed, minutesCost, triggerCooldown = true) => set((state) => {
         const todayStr = new Date().toISOString().split('T')[0];
         const isNewDay = state.lastSpentDate !== todayStr;
         const newTodaySpent = (isNewDay ? 0 : state.todaySpent) + minutesPlayed;
@@ -49,7 +49,9 @@ export const useStore = create(
           totalSpent: state.totalSpent + minutesCost,
           todaySpent: newTodaySpent,
           lastSpentDate: todayStr,
-          cooldownUntil: Date.now() + state.cooldownDuration * 60 * 1000
+          cooldownUntil: triggerCooldown 
+            ? Date.now() + state.cooldownDuration * 60 * 1000 
+            : state.cooldownUntil
         };
       }),
       

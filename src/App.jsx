@@ -76,10 +76,10 @@ function App() {
 
   const handleTimerCancel = useCallback((playedMinutes = null) => {
     if (activeTimer.mode === 'spend' && playedMinutes !== null && playedMinutes > 0) {
-      // Early exit refund logic for spend
+      // Early exit: refund proportionally, but do NOT trigger cooldown
       const costPerMinute = activeTimer.cost / activeTimer.duration;
       const actualCost = Math.ceil(playedMinutes * costPerMinute);
-      recordSpend(playedMinutes, actualCost);
+      recordSpend(playedMinutes, actualCost, false);
     }
     setActiveTimer(null);
   }, [activeTimer, recordSpend]);
