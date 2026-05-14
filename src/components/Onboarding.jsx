@@ -2,19 +2,19 @@ import { ShieldAlert, Lock, PlayCircle, PlusCircle } from 'lucide-react';
 
 export default function Onboarding({ onComplete }) {
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-white/10 rounded-3xl p-8 max-w-2xl w-full text-left shadow-2xl relative overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-start md:items-center justify-center p-2 md:p-4 overflow-y-auto">
+      <div className="bg-[#111] border border-white/10 rounded-3xl p-5 md:p-8 max-w-2xl w-full text-left shadow-2xl relative overflow-hidden my-auto">
         {/* Decorative background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-green/10 blur-[100px] rounded-full pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-brand-red/10 blur-[100px] rounded-full pointer-events-none"></div>
 
         <div className="relative z-10">
-          <h2 className="text-3xl sm:text-4xl font-black italic tracking-tighter mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">
+          <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter mb-1 md:mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">
             WELCOME TO <span className="text-brand-green drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]">TIMEBOXER</span>
           </h2>
-          <p className="text-gray-400 mb-8 font-mono text-sm border-b border-white/10 pb-4">硬核防沉迷 · 儿童时间管理系统</p>
+          <p className="text-gray-400 mb-4 md:mb-8 font-mono text-sm border-b border-white/10 pb-3 md:pb-4">硬核防沉迷 · 儿童时间管理系统</p>
           
-          <div className="space-y-6">
+          <div className="space-y-4 md:space-y-6">
             <div className="flex gap-4 items-start">
               <div className="bg-brand-green/10 p-3 rounded-xl text-brand-green shrink-0">
                 <PlayCircle size={24} />
@@ -58,7 +58,7 @@ export default function Onboarding({ onComplete }) {
 
           <button 
             onClick={onComplete}
-            className="mt-10 w-full py-4 rounded-xl bg-brand-green text-black font-bold text-lg tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] transform hover:-translate-y-1"
+            className="mt-6 md:mt-10 w-full py-3 md:py-4 rounded-xl bg-brand-green text-black font-bold text-base md:text-lg tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] transform hover:-translate-y-1"
           >
             我已了解，立即开始体验
           </button>
