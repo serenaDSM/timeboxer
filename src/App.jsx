@@ -140,6 +140,10 @@ function App() {
       alert("Invalid input!");
       return;
     }
+    if (parsedDuration > 180) {
+      alert("Duration cannot exceed 180 minutes!");
+      return;
+    }
 
     const updated = {
       ...task,
@@ -174,6 +178,10 @@ function App() {
 
     if (isNaN(parsedDuration) || isNaN(parsedReward)) {
       alert("Invalid duration or reward!");
+      return;
+    }
+    if (parsedDuration > 180) {
+      alert("Duration cannot exceed 180 minutes!");
       return;
     }
 
