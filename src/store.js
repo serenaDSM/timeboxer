@@ -4,8 +4,8 @@ import { persist } from 'zustand/middleware'
 const defaultEarnTasks = [
   { id: 'earn-1', title: 'Chinese Reading', duration: 30, reward: 30, icon: 'BookOpen' },
   { id: 'earn-2', title: 'English Reading', duration: 30, reward: 30, icon: 'BookOpen' },
-  { id: 'earn-3', title: 'Outdoor Sports', duration: 30, reward: 60, icon: 'Dumbbell' },
-  { id: 'earn-4', title: 'HIIT Workout', duration: 10, reward: 40, icon: 'Dumbbell' },
+  { id: 'earn-3', title: 'Outdoor Sports', duration: 30, reward: 30, icon: 'Dumbbell' },
+  { id: 'earn-4', title: 'HIIT Workout', duration: 30, reward: 30, icon: 'Dumbbell' },
 ];
 
 const defaultSpendTasks = [
