@@ -20,6 +20,8 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const alarmSourceRef = useRef(null);
   const alarmGainRef = useRef(null);
   const alarmModeRef = useRef(null);
+  const mobileWarningAudioRef = useRef(null);
+  const mobileWarningAudioUrlRef = useRef(null);
   const focusBreakTimeoutRef = useRef(null);
   const wakeLockRef = useRef(null);
   const isMobileDevice = typeof navigator !== 'undefined' && (
@@ -67,6 +69,16 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   }, [playToneSequence]);
 
   const stopContinuousAlarm = useCallback(() => {
+    if (mobileWarningAudioRef.current) {
+      mobileWarningAudioRef.current.pause();
+      mobileWarningAudioRef.current.currentTime = 0;
+      mobileWarningAudioRef.current.src = '';
+      mobileWarningAudioRef.current = null;
+    }
+    if (mobileWarningAudioUrlRef.current) {
+      URL.revokeObjectURL(mobileWarningAudioUrlRef.current);
+      mobileWarningAudioUrlRef.current = null;
+    }
     if (alarmSourceRef.current) {
       try {
         alarmSourceRef.current.stop();
@@ -169,43 +181,93 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     return buffer;
   }, []);
 
+  const createAlarmLoopWavUrl = useCallback((steps, sampleRate = 11025, loopDuration = 1.2) => {
+    const frameCount = Math.max(1, Math.floor(sampleRate * loopDuration));
+    const samples = new Int16Array(frameCount);
+
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const time = frame / sampleRate;
+      let sample = 0;
+
+      steps.forEach(({ frequency, start, duration: stepDuration }) => {
+        if (time < start || time > start + stepDuration) return;
+        const localTime = time - start;
+        const attack = Math.min(1, localTime / 0.01);
+        const release = Math.min(1, (start + stepDuration - time) / 0.03);
+        const envelope = Math.max(0, Math.min(attack, release));
+        const squareWave = Math.sin(2 * Math.PI * frequency * localTime) >= 0 ? 1 : -1;
+        sample += squareWave * 0.18 * envelope;
+      });
+
+      samples[frame] = Math.max(-32767, Math.min(32767, Math.round(sample * 32767)));
+    }
+
+    const bytesPerSample = 2;
+    const dataSize = samples.length * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeAscii = (offset, text) => {
+      for (let index = 0; index < text.length; index += 1) {
+        view.setUint8(offset + index, text.charCodeAt(index));
+      }
+    };
+
+    writeAscii(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeAscii(8, 'WAVE');
+    writeAscii(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true);
+    view.setUint16(32, bytesPerSample, true);
+    view.setUint16(34, 16, true);
+    writeAscii(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    samples.forEach((sample) => {
+      view.setInt16(offset, sample, true);
+      offset += 2;
+    });
+
+    return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+  }, []);
+
   const armContinuousAlarm = useCallback((mode = 'warning') => {
     if (!isMobileDevice || mode !== 'warning') return;
+    if (mobileWarningAudioRef.current) return;
     if (alarmSourceRef.current && alarmModeRef.current === 'warning-armed') return;
     if (alarmSourceRef.current && alarmModeRef.current === 'warning') return;
 
     stopContinuousAlarm();
 
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-
-      const ctx = new AudioContext();
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-
-      source.buffer = createAlarmLoopBuffer(ctx, getAlarmSteps(mode));
-      source.loop = true;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      source.connect(gain);
-      gain.connect(ctx.destination);
-
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      source.start();
-      alarmContextRef.current = ctx;
-      alarmSourceRef.current = source;
-      alarmGainRef.current = gain;
+      const audio = new Audio();
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.playsInline = true;
+      audio.volume = 0.001;
+      mobileWarningAudioUrlRef.current = createAlarmLoopWavUrl(getAlarmSteps(mode));
+      audio.src = mobileWarningAudioUrlRef.current;
+      audio.play().catch(() => {});
+      mobileWarningAudioRef.current = audio;
       alarmModeRef.current = 'warning-armed';
     } catch {
       // Audio arming is best-effort on mobile browsers.
     }
-  }, [createAlarmLoopBuffer, getAlarmSteps, isMobileDevice, stopContinuousAlarm]);
+  }, [createAlarmLoopWavUrl, getAlarmSteps, isMobileDevice, stopContinuousAlarm]);
 
   const startContinuousAlarm = useCallback((mode = 'exit') => {
     if (alarmSourceRef.current && alarmModeRef.current === mode) return;
+    if (mode === 'warning' && mobileWarningAudioRef.current) {
+      mobileWarningAudioRef.current.volume = 1;
+      mobileWarningAudioRef.current.play().catch(() => {});
+      alarmModeRef.current = 'warning';
+      return;
+    }
     if (
       mode === 'warning' &&
       alarmSourceRef.current &&
