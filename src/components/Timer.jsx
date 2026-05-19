@@ -140,19 +140,19 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     let focusCheckInterval = null;
 
     const handleVisibilityChange = () => {
-      if (document.hidden && isEarnMode && !isOvertime) {
-        pauseForFocusBreak();
+      if (!document.hidden) {
+        checkWindowSize();
       }
     };
 
     const handleFocusLoss = () => {
-      if (isEarnMode && !isOvertime) {
+      if (isEarnMode && !isOvertime && !document.hidden) {
         pauseForFocusBreak();
       }
     };
 
     const checkWindowSize = () => {
-      if (isEarnMode && !isOvertime) {
+      if (isEarnMode && !isOvertime && !document.hidden) {
         const isMaximized = 
           !!document.fullscreenElement ||
           (window.innerWidth >= window.screen.availWidth - 100 && 
@@ -165,7 +165,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     };
 
     const checkWindowFocus = () => {
-      if (isEarnMode && !isOvertime && !document.hasFocus()) {
+      if (isEarnMode && !isOvertime && !document.hidden && !document.hasFocus()) {
         pauseForFocusBreak();
       }
     };
