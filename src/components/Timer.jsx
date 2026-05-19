@@ -8,12 +8,16 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   
   const [isOvertime, setIsOvertime] = useState(false);
   const [overtimeSeconds, setOvertimeSeconds] = useState(0);
+  const [pinPrompt, setPinPrompt] = useState(null);
+  const [pinValue, setPinValue] = useState('');
+  const [pinError, setPinError] = useState('');
 
   const isEarnMode = mode === 'earn';
   const targetEndAtRef = useRef(null);
   const overtimeStartAtRef = useRef(null);
   const warningSoundAtRef = useRef(0);
   const didRingAtTargetRef = useRef(false);
+  const alarmLoopRef = useRef(null);
 
   const playToneSequence = useCallback((steps) => {
     try {
@@ -73,6 +77,22 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       { frequency: 147, start: 0.78, duration: 0.32 },
     ]);
   }, [playToneSequence]);
+
+  const startContinuousAlarm = useCallback(() => {
+    if (alarmLoopRef.current) return;
+    playExitAttemptAlarm();
+    alarmLoopRef.current = window.setInterval(playExitAttemptAlarm, 1200);
+  }, [playExitAttemptAlarm]);
+
+  const stopContinuousAlarm = useCallback(() => {
+    if (!alarmLoopRef.current) return;
+    window.clearInterval(alarmLoopRef.current);
+    alarmLoopRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => stopContinuousAlarm();
+  }, [stopContinuousAlarm]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {
@@ -215,28 +235,52 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const waitForAlarmStart = () => new Promise((resolve) => {
-    window.setTimeout(resolve, 250);
-  });
+  const openPinPrompt = (nextPrompt) => {
+    setPinValue('');
+    setPinError('');
+    setPinPrompt(nextPrompt);
+  };
 
-  const handleActionClick = async () => {
+  const closePinPrompt = () => {
+    if (pinPrompt?.type === 'earnExit') {
+      stopContinuousAlarm();
+    }
+    setPinPrompt(null);
+    setPinValue('');
+    setPinError('');
+  };
+
+  const submitPinPrompt = (event) => {
+    event.preventDefault();
+    if (!pinPrompt) return;
+
+    if (pinValue !== parentPIN) {
+      setPinError('密码错误 (Incorrect PIN)!');
+      return;
+    }
+
+    if (pinPrompt.type === 'earnExit') {
+      stopContinuousAlarm();
+      onCancel();
+      return;
+    }
+
+    const playedSeconds = (duration * 60) - pinPrompt.timeLeft;
+    const playedMinutes = Math.ceil(playedSeconds / 60);
+    onCancel(playedMinutes);
+  };
+
+  const handleActionClick = () => {
     if (isEarnMode) {
       if (isOvertime) {
         // Claim reward!
         const extraMinutes = Math.floor(overtimeSeconds / 60);
         onComplete(duration, extraMinutes);
       } else {
-        playExitAttemptAlarm();
+        startContinuousAlarm();
         freezeTimer();
         setIsActive(false);
-        await waitForAlarmStart();
-
-        const pin = window.prompt("放弃任务？提前退出收益为0！请输入密码以退出 (Parent PIN):");
-        if (pin === parentPIN) {
-          onCancel();
-        } else if (pin !== null) {
-          alert("密码错误 (Incorrect PIN)!");
-        }
+        openPinPrompt({ type: 'earnExit' });
       }
     } else {
       // Spend mode early exit
@@ -246,15 +290,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       setTimeLeft(currentTimeLeft);
       targetEndAtRef.current = null;
       setIsActive(false);
-
-      const pin = window.prompt("家长锁：请输入密码以提前退出娱乐 (Parent PIN):");
-      if (pin === parentPIN) {
-        const playedSeconds = (duration * 60) - currentTimeLeft;
-        const playedMinutes = Math.ceil(playedSeconds / 60); // Round up to nearest minute
-        onCancel(playedMinutes);
-      } else if (pin !== null) {
-        alert("密码错误 (Incorrect PIN)!");
-      }
+      openPinPrompt({ type: 'spendExit', timeLeft: currentTimeLeft });
     }
   };
 
@@ -307,6 +343,53 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
           <span>Stay focused. {isEarnMode && "Switching apps or shrinking the window will pause the timer."}</span>
         )}
       </div>
+
+      {pinPrompt && (
+        <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={submitPinPrompt}
+            className="w-full max-w-sm bg-[#111] border border-white/15 rounded-2xl p-6 shadow-2xl"
+          >
+            <div className={`text-lg font-black uppercase tracking-widest mb-2 ${pinPrompt.type === 'earnExit' ? 'text-brand-red animate-pulse' : 'text-white'}`}>
+              {pinPrompt.type === 'earnExit' ? 'Exit Alarm' : 'Parent Lock'}
+            </div>
+            <div className="text-sm text-gray-400 mb-4">
+              {pinPrompt.type === 'earnExit'
+                ? '放弃任务？提前退出收益为 0。请输入家长密码。'
+                : '提前退出娱乐。请输入家长密码。'}
+            </div>
+            <input
+              autoFocus
+              type="password"
+              value={pinValue}
+              onChange={(event) => {
+                setPinValue(event.target.value);
+                if (pinError) setPinError('');
+              }}
+              className="w-full bg-black border border-white/20 rounded-xl px-4 py-3 text-white font-mono text-lg outline-none focus:border-brand-green"
+              placeholder="Parent PIN"
+            />
+            <div className="h-6 mt-2 text-sm text-brand-red font-bold">
+              {pinError}
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={closePinPrompt}
+                className="flex-1 py-3 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-3 rounded-xl bg-brand-green text-black font-black hover:bg-white transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
