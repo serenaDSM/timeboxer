@@ -232,10 +232,16 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       }
     } else {
       // Spend mode early exit
-      playExitAttemptAlarm();
+      const currentTimeLeft = targetEndAtRef.current
+        ? Math.max(0, Math.ceil((targetEndAtRef.current - Date.now()) / 1000))
+        : timeLeft;
+      setTimeLeft(currentTimeLeft);
+      targetEndAtRef.current = null;
+      setIsActive(false);
+
       const pin = window.prompt("家长锁：请输入密码以提前退出娱乐 (Parent PIN):");
       if (pin === parentPIN) {
-        const playedSeconds = (duration * 60) - timeLeft;
+        const playedSeconds = (duration * 60) - currentTimeLeft;
         const playedMinutes = Math.ceil(playedSeconds / 60); // Round up to nearest minute
         onCancel(playedMinutes);
       } else if (pin !== null) {
