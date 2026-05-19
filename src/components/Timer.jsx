@@ -19,6 +19,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const didRingAtTargetRef = useRef(false);
   const alarmLoopRef = useRef(null);
   const alarmModeRef = useRef(null);
+  const focusBreakTimeoutRef = useRef(null);
 
   const playToneSequence = useCallback((steps) => {
     try {
@@ -86,6 +87,12 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     alarmModeRef.current = null;
   }, []);
 
+  const clearPendingFocusBreak = useCallback(() => {
+    if (!focusBreakTimeoutRef.current) return;
+    window.clearTimeout(focusBreakTimeoutRef.current);
+    focusBreakTimeoutRef.current = null;
+  }, []);
+
   const startContinuousAlarm = useCallback((mode = 'exit') => {
     if (alarmLoopRef.current && alarmModeRef.current === mode) return;
 
@@ -101,8 +108,11 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   }, [playExitAttemptAlarm, playWarningAlarm, stopContinuousAlarm]);
 
   useEffect(() => {
-    return () => stopContinuousAlarm();
-  }, [stopContinuousAlarm]);
+    return () => {
+      stopContinuousAlarm();
+      clearPendingFocusBreak();
+    };
+  }, [clearPendingFocusBreak, stopContinuousAlarm]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {
@@ -152,17 +162,29 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   // Security checks
   useEffect(() => {
     let focusCheckInterval = null;
+    const focusBreakDelayMs = 180;
+
+    const scheduleFocusBreakCheck = () => {
+      if (!isEarnMode || isOvertime || document.hidden) return;
+      clearPendingFocusBreak();
+      focusBreakTimeoutRef.current = window.setTimeout(() => {
+        focusBreakTimeoutRef.current = null;
+        if (!document.hidden && !document.hasFocus()) {
+          pauseForFocusBreak();
+        }
+      }, focusBreakDelayMs);
+    };
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        checkWindowSize();
+      if (document.hidden) {
+        clearPendingFocusBreak();
+        return;
       }
+      checkWindowSize();
     };
 
     const handleFocusLoss = () => {
-      if (isEarnMode && !isOvertime && !document.hidden) {
-        pauseForFocusBreak();
-      }
+      scheduleFocusBreakCheck();
     };
 
     const checkWindowSize = () => {
@@ -180,7 +202,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
 
     const checkWindowFocus = () => {
       if (isEarnMode && !isOvertime && !document.hidden && !document.hasFocus()) {
-        pauseForFocusBreak();
+        scheduleFocusBreakCheck();
       }
     };
 
@@ -201,8 +223,9 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       window.removeEventListener('focusout', handleFocusLoss);
       window.removeEventListener('resize', checkWindowSize);
       window.clearInterval(focusCheckInterval);
+      clearPendingFocusBreak();
     };
-  }, [isEarnMode, isOvertime, pauseForFocusBreak]);
+  }, [clearPendingFocusBreak, isEarnMode, isOvertime, pauseForFocusBreak]);
 
   // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {
