@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, X, Trophy } from 'lucide-react';
 
 export default function Timer({ mode, duration, parentPIN, onComplete, onCancel }) {
@@ -10,20 +10,107 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const [overtimeSeconds, setOvertimeSeconds] = useState(0);
 
   const isEarnMode = mode === 'earn';
+  const targetEndAtRef = useRef(null);
+  const overtimeStartAtRef = useRef(null);
+  const warningSoundAtRef = useRef(0);
+  const didRingAtTargetRef = useRef(false);
+
+  const playToneSequence = useCallback((steps) => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, ctx.currentTime);
+      master.connect(ctx.destination);
+
+      steps.forEach(({ frequency, start, duration: stepDuration }) => {
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + start);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + stepDuration);
+        oscillator.connect(gain);
+        gain.connect(master);
+        oscillator.start(ctx.currentTime + start);
+        oscillator.stop(ctx.currentTime + start + stepDuration + 0.04);
+      });
+
+      const lastStep = steps.at(-1);
+      const closeAfter = lastStep ? lastStep.start + lastStep.duration + 0.3 : 0.5;
+      window.setTimeout(() => ctx.close().catch(() => {}), closeAfter * 1000);
+    } catch {
+      // Audio is best-effort; browsers may block it if the tab has no active user gesture.
+    }
+  }, []);
+
+  const playCompletionBell = useCallback(() => {
+    playToneSequence([
+      { frequency: 784, start: 0, duration: 0.18 },
+      { frequency: 988, start: 0.24, duration: 0.18 },
+      { frequency: 1175, start: 0.48, duration: 0.3 },
+    ]);
+  }, [playToneSequence]);
+
+  const playWarningAlarm = useCallback(() => {
+    const now = Date.now();
+    if (now - warningSoundAtRef.current < 1500) return;
+    warningSoundAtRef.current = now;
+    playToneSequence([
+      { frequency: 220, start: 0, duration: 0.16 },
+      { frequency: 220, start: 0.24, duration: 0.16 },
+      { frequency: 220, start: 0.48, duration: 0.3 },
+    ]);
+  }, [playToneSequence]);
+
+  const syncTimerFromClock = useCallback(() => {
+    if (!targetEndAtRef.current) {
+      targetEndAtRef.current = Date.now() + timeLeft * 1000;
+    }
+
+    if (isEarnMode && isOvertime) {
+      if (!overtimeStartAtRef.current) overtimeStartAtRef.current = Date.now();
+      setOvertimeSeconds(Math.max(0, Math.floor((Date.now() - overtimeStartAtRef.current) / 1000)));
+      return;
+    }
+
+    const remaining = Math.max(0, Math.ceil((targetEndAtRef.current - Date.now()) / 1000));
+    setTimeLeft(remaining);
+
+    if (remaining === 0 && isEarnMode && !isOvertime) {
+      if (!didRingAtTargetRef.current) {
+        playCompletionBell();
+        didRingAtTargetRef.current = true;
+      }
+      setIsOvertime(true);
+      overtimeStartAtRef.current = Date.now();
+    }
+  }, [isEarnMode, isOvertime, playCompletionBell, timeLeft]);
+
+  const freezeTimer = useCallback(() => {
+    syncTimerFromClock();
+    if (isEarnMode && isOvertime) {
+      overtimeStartAtRef.current = null;
+    } else {
+      targetEndAtRef.current = null;
+    }
+  }, [isEarnMode, isOvertime, syncTimerFromClock]);
+
+  const pauseForFocusBreak = useCallback(() => {
+    if (!isEarnMode || isOvertime) return;
+    freezeTimer();
+    setIsActive(false);
+    setShowWarning(true);
+    playWarningAlarm();
+  }, [freezeTimer, isEarnMode, isOvertime, playWarningAlarm]);
 
   // Security checks
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && isEarnMode && !isOvertime) {
-        setIsActive(false);
-        setShowWarning(true);
-      }
-    };
-
-    const handleBlur = () => {
-      if (isEarnMode && !isOvertime) {
-        setIsActive(false);
-        setShowWarning(true);
+        pauseForFocusBreak();
       }
     };
 
@@ -35,58 +122,55 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
            window.innerHeight >= window.screen.availHeight - 250);
           
         if (!isMaximized) {
-          setIsActive(false);
-          setShowWarning(true);
+          pauseForFocusBreak();
         }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
     window.addEventListener('resize', checkWindowSize);
     
     checkWindowSize();
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('resize', checkWindowSize);
     };
-  }, [isEarnMode, isOvertime]);
+  }, [isEarnMode, isOvertime, pauseForFocusBreak]);
 
-  // Tick logic
+  // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {
     let interval = null;
     if (isActive) {
+      if (!targetEndAtRef.current) {
+        targetEndAtRef.current = Date.now() + timeLeft * 1000;
+      }
+      if (isEarnMode && isOvertime && !overtimeStartAtRef.current) {
+        overtimeStartAtRef.current = Date.now() - overtimeSeconds * 1000;
+      }
+
       interval = setInterval(() => {
         if (isEarnMode) {
           if (!isOvertime) {
-            setTimeLeft((prev) => {
-              if (prev <= 1) {
-                new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3').play().catch(()=>{});
-                setIsOvertime(true);
-                return 0;
-              }
-              return prev - 1;
-            });
+            syncTimerFromClock();
           } else {
-            setOvertimeSeconds((prev) => prev + 1);
+            syncTimerFromClock();
           }
         } else {
           // Spend Mode
-          setTimeLeft((prev) => {
-            if (prev <= 1) {
-              setIsActive(false);
-              onComplete(duration, 0); 
-              return 0;
-            }
-            return prev - 1;
-          });
+          const remaining = Math.max(0, Math.ceil((targetEndAtRef.current - Date.now()) / 1000));
+          setTimeLeft(remaining);
+          if (remaining === 0) {
+            setIsActive(false);
+            playCompletionBell();
+            onComplete(duration, 0); 
+          }
         }
       }, 1000);
+      syncTimerFromClock();
     }
     return () => clearInterval(interval);
-  }, [isActive, isOvertime, isEarnMode, duration, onComplete]);
+  }, [duration, isActive, isEarnMode, isOvertime, onComplete, overtimeSeconds, playCompletionBell, syncTimerFromClock, timeLeft]);
 
   // Request fullscreen wrapper
   const toggleTimer = async () => {
@@ -100,7 +184,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         if (!isMaximized) {
           try {
             await document.documentElement.requestFullscreen();
-          } catch (err) {
+          } catch {
             alert("⚠️ 必须将窗口最大化或全屏才能继续计时！");
             return;
           }
@@ -109,6 +193,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       setIsActive(true);
       if (showWarning) setShowWarning(false);
     } else {
+      freezeTimer();
       setIsActive(false);
     }
   };

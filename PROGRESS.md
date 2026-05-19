@@ -1,6 +1,8 @@
 # PROGRESS: TimeBoxer (时间管理者 - 儿童专注打卡 APP)
 
-## 📌 第一阶段：设计文档 (Design Document)
+## 📌 第一阶段：项目信息 (Project Info)
+* **部署地址 (Netlify)**：[https://timeboxer-app.netlify.app/](https://timeboxer-app.netlify.app/)
+* **源码仓库 (GitHub)**：[https://github.com/serenaDSM/timeboxer](https://github.com/serenaDSM/timeboxer)
 * **核心定位**：一款专为 11 岁男孩设计的硬核防作弊、游戏化时间管理 Web 应用。
 * **核心功能模块**：
   * **Earn Time (赚取区)**：完成指定任务（如阅读、运动）获取时间币。
@@ -38,6 +40,28 @@
 - [x] **霸屏机制 (Anti-Cheat 2.0)**：
   - 点击开始倒计时时，强制检测窗口大小，若不是全屏状态，则通过 `requestFullscreen()` 强制拉起浏览器全屏。
   - 倒计时过程中，监控 `resize`，若窗口高度/宽度被缩小（比如企图露出桌面看视频），倒计时立刻暂停并显示警告。
+
+### [2026-05-18] 基础测试与预览准备
+- [x] 修复 `App.jsx` 中 render 阶段调用 `Date.now()` 导致的 React purity lint 错误。
+- [x] 修复两个 Timer 文件中未使用 `err` 变量导致的 lint 错误。
+- [x] 重新运行 `npm run lint` 和 `npm run build`，均通过。
+
+### [2026-05-18] Bug 修复：启动全屏与本地运行稳定性
+- [x] 修复 Earn 任务开始时没有在用户点击手势内请求全屏的问题；现在窗口未最大化/全屏时会先尝试进入全屏，失败则不启动计时。
+- [x] 修复每日消费统计使用 UTC 日期的问题；改为本地日期 key，避免北京时间下跨日统计错位。
+- [x] 限制 Tailwind 4 扫描范围到 `src`，并关闭 Vite/Tailwind CSS 压缩优化，避免 dev server 在当前环境中启动卡住。
+- [x] 本地 dev server 已启动并打开：`http://127.0.0.1:5173/`，首页 HTTP 返回 200。
+- [x] `npm run build` 与 eslint 长时间不退出的问题已在后续工具链稳定性修复中解决。
+
+### [2026-05-18] 工具链稳定性修复
+- [x] 将构建工具链收敛到稳定组合：Vite `7.3.3`、`@vitejs/plugin-react` `5.2.0`、TailwindCSS `4.1.18`、ESLint `9.39.4`。
+- [x] 将 `lucide-react` 从 `1.x` 降到 `0.511.0`，避免 esbuild/Vite 打包图标库时卡在依赖转换阶段。
+- [x] 将 `eslint-plugin-react-hooks` 降到 `5.2.0`，并把旧式推荐规则转换成 flat config 写法；补充 `eslint-plugin-react` 的 JSX 使用检测规则。
+- [x] 修复 `node_modules/@vitejs/plugin-react 2` 异常目录名导致的模块解析失败。
+- [x] `npm run lint` 已稳定通过。
+- [x] `npm run build` 已稳定通过，产物生成到 `dist/`。
+- [x] 使用 `npm run preview -- --host 127.0.0.1` 启动生产预览，并在浏览器验证 `http://127.0.0.1:4173/` 页面正常渲染、无新控制台错误。
+- [x] 清理旧 Vite/esbuild 进程并强制重建依赖缓存后，`npm run dev -- --host 127.0.0.1 --force` 已可正常加载；浏览器验证 Vite HMR 连接成功。
 
 ---
 

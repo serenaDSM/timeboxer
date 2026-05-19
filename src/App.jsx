@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useStore } from './store';
+import { getLocalDateKey } from './date';
 import Timer from './components/Timer';
 import Onboarding from './components/Onboarding';
 import { BookOpen, Dumbbell, Gamepad2, Tv, Battery, BatteryFull, Box, Pencil, Trash2, Star, Plus, Target, Lock, Settings, RotateCcw } from 'lucide-react';
@@ -20,19 +21,24 @@ function App() {
   } = useStore();
   
   const [activeTimer, setActiveTimer] = useState(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
+  const [todayStr, setTodayStr] = useState('');
 
-  // Update "now" for realtime cooldown tracking
+  // Update clock-derived state outside render for lint-safe realtime tracking.
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const updateClock = () => {
+      setNow(Date.now());
+      setTodayStr(getLocalDateKey());
+    };
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
   const actualTodaySpent = (lastSpentDate === todayStr) ? todaySpent : 0;
   
   // Cooldown logic
-  const cooldownRemaining = cooldownUntil - now;
+  const cooldownRemaining = now ? cooldownUntil - now : 0;
   const isCoolingDown = cooldownRemaining > 0;
   
   const formatCooldown = (ms) => {
@@ -42,7 +48,23 @@ function App() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleTaskClick = (duration, reward) => {
+  const isEarnTimerFullscreenReady = () => {
+    return (
+      !!document.fullscreenElement ||
+      (window.innerWidth >= window.screen.availWidth - 100 &&
+        window.innerHeight >= window.screen.availHeight - 250)
+    );
+  };
+
+  const handleTaskClick = async (duration, reward) => {
+    if (!isEarnTimerFullscreenReady()) {
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch {
+        alert("⚠️ 必须将窗口最大化或全屏才能开始计时！");
+        return;
+      }
+    }
     setActiveTimer({ mode: 'earn', duration, reward });
   };
 

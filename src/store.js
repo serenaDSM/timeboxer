@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getLocalDateKey } from './date'
 
 const defaultEarnTasks = [
   { id: 'earn-1', title: 'Chinese Reading', duration: 30, reward: 30, icon: 'BookOpen' },
@@ -48,7 +49,7 @@ export const useStore = create(
       }),
 
       recordSpend: (minutesPlayed, minutesCost, triggerCooldown = true) => set((state) => {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateKey();
         const isNewDay = state.lastSpentDate !== todayStr;
         const newTodaySpent = (isNewDay ? 0 : state.todaySpent) + minutesPlayed;
         
