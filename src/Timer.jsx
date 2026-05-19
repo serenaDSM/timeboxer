@@ -137,8 +137,16 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
 
   // Security checks
   useEffect(() => {
+    let focusCheckInterval = null;
+
     const handleVisibilityChange = () => {
       if (document.hidden && isEarnMode && !isOvertime) {
+        pauseForFocusBreak();
+      }
+    };
+
+    const handleFocusLoss = () => {
+      if (isEarnMode && !isOvertime) {
         pauseForFocusBreak();
       }
     };
@@ -156,16 +164,29 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       }
     };
 
+    const checkWindowFocus = () => {
+      if (isEarnMode && !isOvertime && !document.hasFocus()) {
+        pauseForFocusBreak();
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('fullscreenchange', checkWindowSize);
+    window.addEventListener('blur', handleFocusLoss);
+    window.addEventListener('focusout', handleFocusLoss);
     window.addEventListener('resize', checkWindowSize);
+    focusCheckInterval = window.setInterval(checkWindowFocus, 1000);
     
     checkWindowSize();
+    checkWindowFocus();
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', checkWindowSize);
+      window.removeEventListener('blur', handleFocusLoss);
+      window.removeEventListener('focusout', handleFocusLoss);
       window.removeEventListener('resize', checkWindowSize);
+      window.clearInterval(focusCheckInterval);
     };
   }, [isEarnMode, isOvertime, pauseForFocusBreak]);
 
