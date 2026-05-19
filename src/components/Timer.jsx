@@ -54,14 +54,23 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     ]);
   }, [playToneSequence]);
 
-  const playWarningAlarm = useCallback(() => {
+  const playWarningAlarm = useCallback((force = false) => {
     const now = Date.now();
-    if (now - warningSoundAtRef.current < 1500) return;
+    if (!force && now - warningSoundAtRef.current < 1500) return;
     warningSoundAtRef.current = now;
     playToneSequence([
       { frequency: 220, start: 0, duration: 0.16 },
       { frequency: 220, start: 0.24, duration: 0.16 },
       { frequency: 220, start: 0.48, duration: 0.3 },
+    ]);
+  }, [playToneSequence]);
+
+  const playExitAttemptAlarm = useCallback(() => {
+    playToneSequence([
+      { frequency: 196, start: 0, duration: 0.18 },
+      { frequency: 196, start: 0.24, duration: 0.18 },
+      { frequency: 147, start: 0.48, duration: 0.22 },
+      { frequency: 147, start: 0.78, duration: 0.32 },
     ]);
   }, [playToneSequence]);
 
@@ -103,7 +112,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     freezeTimer();
     setIsActive(false);
     setShowWarning(true);
-    playWarningAlarm();
+    playWarningAlarm(true);
   }, [freezeTimer, isEarnMode, isOvertime, playWarningAlarm]);
 
   // Security checks
@@ -128,12 +137,14 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', checkWindowSize);
     window.addEventListener('resize', checkWindowSize);
     
     checkWindowSize();
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', checkWindowSize);
       window.removeEventListener('resize', checkWindowSize);
     };
   }, [isEarnMode, isOvertime, pauseForFocusBreak]);
@@ -211,6 +222,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         const extraMinutes = Math.floor(overtimeSeconds / 60);
         onComplete(duration, extraMinutes);
       } else {
+        playExitAttemptAlarm();
         const pin = window.prompt("放弃任务？提前退出收益为0！请输入密码以退出 (Parent PIN):");
         if (pin === parentPIN) {
           onCancel();
@@ -220,6 +232,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       }
     } else {
       // Spend mode early exit
+      playExitAttemptAlarm();
       const pin = window.prompt("家长锁：请输入密码以提前退出娱乐 (Parent PIN):");
       if (pin === parentPIN) {
         const playedSeconds = (duration * 60) - timeLeft;
