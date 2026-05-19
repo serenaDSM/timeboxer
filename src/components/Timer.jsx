@@ -18,6 +18,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const warningSoundAtRef = useRef(0);
   const didRingAtTargetRef = useRef(false);
   const alarmLoopRef = useRef(null);
+  const alarmModeRef = useRef(null);
 
   const playToneSequence = useCallback((steps) => {
     try {
@@ -78,17 +79,26 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     ]);
   }, [playToneSequence]);
 
-  const startContinuousAlarm = useCallback(() => {
-    if (alarmLoopRef.current) return;
-    playExitAttemptAlarm();
-    alarmLoopRef.current = window.setInterval(playExitAttemptAlarm, 1200);
-  }, [playExitAttemptAlarm]);
-
   const stopContinuousAlarm = useCallback(() => {
     if (!alarmLoopRef.current) return;
     window.clearInterval(alarmLoopRef.current);
     alarmLoopRef.current = null;
+    alarmModeRef.current = null;
   }, []);
+
+  const startContinuousAlarm = useCallback((mode = 'exit') => {
+    if (alarmLoopRef.current && alarmModeRef.current === mode) return;
+
+    stopContinuousAlarm();
+
+    const playAlarm = mode === 'warning'
+      ? () => playWarningAlarm(true)
+      : playExitAttemptAlarm;
+
+    playAlarm();
+    alarmLoopRef.current = window.setInterval(playAlarm, 1200);
+    alarmModeRef.current = mode;
+  }, [playExitAttemptAlarm, playWarningAlarm, stopContinuousAlarm]);
 
   useEffect(() => {
     return () => stopContinuousAlarm();
@@ -129,11 +139,15 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
 
   const pauseForFocusBreak = useCallback(() => {
     if (!isEarnMode || isOvertime) return;
+    if (!isActive && showWarning) {
+      startContinuousAlarm('warning');
+      return;
+    }
     freezeTimer();
     setIsActive(false);
     setShowWarning(true);
-    playWarningAlarm(true);
-  }, [freezeTimer, isEarnMode, isOvertime, playWarningAlarm]);
+    startContinuousAlarm('warning');
+  }, [freezeTimer, isActive, isEarnMode, isOvertime, showWarning, startContinuousAlarm]);
 
   // Security checks
   useEffect(() => {
@@ -242,6 +256,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
           }
         }
       }
+      stopContinuousAlarm();
       setIsActive(true);
       if (showWarning) setShowWarning(false);
     } else {
