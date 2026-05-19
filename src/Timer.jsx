@@ -15,11 +15,17 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const isEarnMode = mode === 'earn';
   const targetEndAtRef = useRef(null);
   const overtimeStartAtRef = useRef(null);
-  const warningSoundAtRef = useRef(0);
   const didRingAtTargetRef = useRef(false);
-  const alarmLoopRef = useRef(null);
+  const alarmContextRef = useRef(null);
+  const alarmSourceRef = useRef(null);
+  const alarmGainRef = useRef(null);
   const alarmModeRef = useRef(null);
   const focusBreakTimeoutRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  const isMobileDevice = typeof navigator !== 'undefined' && (
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024)
+  );
 
   const playToneSequence = useCallback((steps) => {
     try {
@@ -60,30 +66,33 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     ]);
   }, [playToneSequence]);
 
-  const playWarningAlarm = useCallback((force = false) => {
-    const now = Date.now();
-    if (!force && now - warningSoundAtRef.current < 1500) return;
-    warningSoundAtRef.current = now;
-    playToneSequence([
-      { frequency: 220, start: 0, duration: 0.16 },
-      { frequency: 220, start: 0.24, duration: 0.16 },
-      { frequency: 220, start: 0.48, duration: 0.3 },
-    ]);
-  }, [playToneSequence]);
-
-  const playExitAttemptAlarm = useCallback(() => {
-    playToneSequence([
-      { frequency: 196, start: 0, duration: 0.18 },
-      { frequency: 196, start: 0.24, duration: 0.18 },
-      { frequency: 147, start: 0.48, duration: 0.22 },
-      { frequency: 147, start: 0.78, duration: 0.32 },
-    ]);
-  }, [playToneSequence]);
-
   const stopContinuousAlarm = useCallback(() => {
-    if (!alarmLoopRef.current) return;
-    window.clearInterval(alarmLoopRef.current);
-    alarmLoopRef.current = null;
+    if (alarmSourceRef.current) {
+      try {
+        alarmSourceRef.current.stop();
+      } catch {
+        // Ignore double-stop or partially initialized nodes.
+      }
+      try {
+        alarmSourceRef.current.disconnect();
+      } catch {
+        // Ignore disconnect failures during teardown.
+      }
+      alarmSourceRef.current = null;
+    }
+    if (alarmGainRef.current) {
+      try {
+        alarmGainRef.current.disconnect();
+      } catch {
+        // Ignore disconnect failures during teardown.
+      }
+      alarmGainRef.current = null;
+    }
+    if (alarmContextRef.current) {
+      const ctx = alarmContextRef.current;
+      alarmContextRef.current = null;
+      ctx.close().catch(() => {});
+    }
     alarmModeRef.current = null;
   }, []);
 
@@ -93,26 +102,130 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     focusBreakTimeoutRef.current = null;
   }, []);
 
+  const releaseWakeLock = useCallback(async () => {
+    if (!wakeLockRef.current) return;
+    const lock = wakeLockRef.current;
+    wakeLockRef.current = null;
+    try {
+      await lock.release();
+    } catch {
+      // Wake lock might already be released when the page is hidden.
+    }
+  }, []);
+
+  const requestWakeLock = useCallback(async () => {
+    if (!isMobileDevice || !('wakeLock' in navigator) || wakeLockRef.current) return;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      wakeLockRef.current = lock;
+      lock.addEventListener('release', () => {
+        if (wakeLockRef.current === lock) {
+          wakeLockRef.current = null;
+        }
+      });
+    } catch {
+      // Some mobile browsers still do not allow wake lock.
+    }
+  }, [isMobileDevice]);
+
+  const createAlarmLoopBuffer = useCallback((ctx, steps, loopDuration = 1.2) => {
+    const sampleRate = ctx.sampleRate;
+    const frameCount = Math.max(1, Math.floor(sampleRate * loopDuration));
+    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
+    const channel = buffer.getChannelData(0);
+
+    for (let frame = 0; frame < frameCount; frame += 1) {
+      const time = frame / sampleRate;
+      let sample = 0;
+
+      steps.forEach(({ frequency, start, duration: stepDuration }) => {
+        if (time < start || time > start + stepDuration) return;
+        const localTime = time - start;
+        const attack = Math.min(1, localTime / 0.01);
+        const release = Math.min(1, (start + stepDuration - time) / 0.03);
+        const envelope = Math.max(0, Math.min(attack, release));
+        const squareWave = Math.sin(2 * Math.PI * frequency * localTime) >= 0 ? 1 : -1;
+        sample += squareWave * 0.18 * envelope;
+      });
+
+      channel[frame] = Math.max(-1, Math.min(1, sample));
+    }
+
+    return buffer;
+  }, []);
+
   const startContinuousAlarm = useCallback((mode = 'exit') => {
-    if (alarmLoopRef.current && alarmModeRef.current === mode) return;
+    if (alarmSourceRef.current && alarmModeRef.current === mode) return;
 
     stopContinuousAlarm();
 
-    const playAlarm = mode === 'warning'
-      ? () => playWarningAlarm(true)
-      : playExitAttemptAlarm;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
 
-    playAlarm();
-    alarmLoopRef.current = window.setInterval(playAlarm, 1200);
-    alarmModeRef.current = mode;
-  }, [playExitAttemptAlarm, playWarningAlarm, stopContinuousAlarm]);
+      const ctx = new AudioContext();
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      const steps = mode === 'warning'
+        ? [
+            { frequency: 220, start: 0, duration: 0.16 },
+            { frequency: 220, start: 0.24, duration: 0.16 },
+            { frequency: 220, start: 0.48, duration: 0.3 },
+          ]
+        : [
+            { frequency: 196, start: 0, duration: 0.18 },
+            { frequency: 196, start: 0.24, duration: 0.18 },
+            { frequency: 147, start: 0.48, duration: 0.22 },
+            { frequency: 147, start: 0.78, duration: 0.32 },
+          ];
+
+      source.buffer = createAlarmLoopBuffer(ctx, steps);
+      source.loop = true;
+      gain.gain.setValueAtTime(0.9, ctx.currentTime);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      source.start();
+      alarmContextRef.current = ctx;
+      alarmSourceRef.current = source;
+      alarmGainRef.current = gain;
+      alarmModeRef.current = mode;
+    } catch {
+      // Audio is best-effort; browsers may still block it in some edge cases.
+    }
+  }, [createAlarmLoopBuffer, stopContinuousAlarm]);
 
   useEffect(() => {
     return () => {
       stopContinuousAlarm();
       clearPendingFocusBreak();
+      releaseWakeLock();
     };
-  }, [clearPendingFocusBreak, stopContinuousAlarm]);
+  }, [clearPendingFocusBreak, releaseWakeLock, stopContinuousAlarm]);
+
+  useEffect(() => {
+    if (!isEarnMode || isOvertime || !isMobileDevice) return undefined;
+
+    const syncWakeLock = () => {
+      if (isActive && !document.hidden) {
+        requestWakeLock();
+        return;
+      }
+      releaseWakeLock();
+    };
+
+    syncWakeLock();
+    document.addEventListener('visibilitychange', syncWakeLock);
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncWakeLock);
+      releaseWakeLock();
+    };
+  }, [isActive, isEarnMode, isMobileDevice, isOvertime, releaseWakeLock, requestWakeLock]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {
@@ -178,6 +291,9 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     const handleVisibilityChange = () => {
       if (document.hidden) {
         clearPendingFocusBreak();
+        if (isMobileDevice && isEarnMode && !isOvertime) {
+          pauseForFocusBreak();
+        }
         return;
       }
       checkWindowSize();
@@ -225,7 +341,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       window.clearInterval(focusCheckInterval);
       clearPendingFocusBreak();
     };
-  }, [clearPendingFocusBreak, isEarnMode, isOvertime, pauseForFocusBreak]);
+  }, [clearPendingFocusBreak, isEarnMode, isMobileDevice, isOvertime, pauseForFocusBreak]);
 
   // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {
