@@ -128,6 +128,21 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     }
   }, [isMobileDevice]);
 
+  const getAlarmSteps = useCallback((mode) => (
+    mode === 'warning'
+      ? [
+          { frequency: 220, start: 0, duration: 0.16 },
+          { frequency: 220, start: 0.24, duration: 0.16 },
+          { frequency: 220, start: 0.48, duration: 0.3 },
+        ]
+      : [
+          { frequency: 196, start: 0, duration: 0.18 },
+          { frequency: 196, start: 0.24, duration: 0.18 },
+          { frequency: 147, start: 0.48, duration: 0.22 },
+          { frequency: 147, start: 0.78, duration: 0.32 },
+        ]
+  ), []);
+
   const createAlarmLoopBuffer = useCallback((ctx, steps, loopDuration = 1.2) => {
     const sampleRate = ctx.sampleRate;
     const frameCount = Math.max(1, Math.floor(sampleRate * loopDuration));
@@ -154,8 +169,10 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     return buffer;
   }, []);
 
-  const startContinuousAlarm = useCallback((mode = 'exit') => {
-    if (alarmSourceRef.current && alarmModeRef.current === mode) return;
+  const armContinuousAlarm = useCallback((mode = 'warning') => {
+    if (!isMobileDevice || mode !== 'warning') return;
+    if (alarmSourceRef.current && alarmModeRef.current === 'warning-armed') return;
+    if (alarmSourceRef.current && alarmModeRef.current === 'warning') return;
 
     stopContinuousAlarm();
 
@@ -166,20 +183,50 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       const ctx = new AudioContext();
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
-      const steps = mode === 'warning'
-        ? [
-            { frequency: 220, start: 0, duration: 0.16 },
-            { frequency: 220, start: 0.24, duration: 0.16 },
-            { frequency: 220, start: 0.48, duration: 0.3 },
-          ]
-        : [
-            { frequency: 196, start: 0, duration: 0.18 },
-            { frequency: 196, start: 0.24, duration: 0.18 },
-            { frequency: 147, start: 0.48, duration: 0.22 },
-            { frequency: 147, start: 0.78, duration: 0.32 },
-          ];
 
-      source.buffer = createAlarmLoopBuffer(ctx, steps);
+      source.buffer = createAlarmLoopBuffer(ctx, getAlarmSteps(mode));
+      source.loop = true;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      source.start();
+      alarmContextRef.current = ctx;
+      alarmSourceRef.current = source;
+      alarmGainRef.current = gain;
+      alarmModeRef.current = 'warning-armed';
+    } catch {
+      // Audio arming is best-effort on mobile browsers.
+    }
+  }, [createAlarmLoopBuffer, getAlarmSteps, isMobileDevice, stopContinuousAlarm]);
+
+  const startContinuousAlarm = useCallback((mode = 'exit') => {
+    if (alarmSourceRef.current && alarmModeRef.current === mode) return;
+    if (
+      mode === 'warning' &&
+      alarmSourceRef.current &&
+      alarmGainRef.current &&
+      alarmModeRef.current === 'warning-armed'
+    ) {
+      alarmGainRef.current.gain.setValueAtTime(0.9, alarmContextRef.current?.currentTime ?? 0);
+      alarmModeRef.current = 'warning';
+      return;
+    }
+
+    stopContinuousAlarm();
+
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+
+      const ctx = new AudioContext();
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      source.buffer = createAlarmLoopBuffer(ctx, getAlarmSteps(mode));
       source.loop = true;
       gain.gain.setValueAtTime(0.9, ctx.currentTime);
       source.connect(gain);
@@ -197,7 +244,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     } catch {
       // Audio is best-effort; browsers may still block it in some edge cases.
     }
-  }, [createAlarmLoopBuffer, stopContinuousAlarm]);
+  }, [createAlarmLoopBuffer, getAlarmSteps, stopContinuousAlarm]);
 
   useEffect(() => {
     return () => {
@@ -226,6 +273,12 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       releaseWakeLock();
     };
   }, [isActive, isEarnMode, isMobileDevice, isOvertime, releaseWakeLock, requestWakeLock]);
+
+  useEffect(() => {
+    if (!isMobileDevice || !isEarnMode || isOvertime || !isActive || document.hidden) return undefined;
+    armContinuousAlarm('warning');
+    return undefined;
+  }, [armContinuousAlarm, isActive, isEarnMode, isMobileDevice, isOvertime]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {
