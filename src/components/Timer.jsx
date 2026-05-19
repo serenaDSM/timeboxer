@@ -21,7 +21,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       if (!AudioContext) return;
       const ctx = new AudioContext();
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.0001, ctx.currentTime);
+      master.gain.setValueAtTime(0.7, ctx.currentTime);
       master.connect(ctx.destination);
 
       steps.forEach(({ frequency, start, duration: stepDuration }) => {
@@ -215,7 +215,11 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleActionClick = () => {
+  const waitForAlarmStart = () => new Promise((resolve) => {
+    window.setTimeout(resolve, 250);
+  });
+
+  const handleActionClick = async () => {
     if (isEarnMode) {
       if (isOvertime) {
         // Claim reward!
@@ -225,6 +229,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         playExitAttemptAlarm();
         freezeTimer();
         setIsActive(false);
+        await waitForAlarmStart();
 
         const pin = window.prompt("放弃任务？提前退出收益为0！请输入密码以退出 (Parent PIN):");
         if (pin === parentPIN) {
