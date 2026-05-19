@@ -223,6 +223,9 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         onComplete(duration, extraMinutes);
       } else {
         playExitAttemptAlarm();
+        freezeTimer();
+        setIsActive(false);
+
         const pin = window.prompt("放弃任务？提前退出收益为0！请输入密码以退出 (Parent PIN):");
         if (pin === parentPIN) {
           onCancel();
