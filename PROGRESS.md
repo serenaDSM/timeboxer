@@ -175,6 +175,13 @@
 - [x] 本地浏览器 iPad UA 实测：`OVERTIME BONUS` 纯 `hidden` 场景下时间从 `+00:12` 继续到 `+00:14`，无暂停警告，维持黑屏例外规则。
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
 
+### [2026-05-20] UI 回归修复：iPad 任务编辑/删除按钮消失
+- [x] 定位到根因：任务卡片和设置行的编辑按钮在 `md` 断点下默认透明，只在 `hover` 时显示；`iPad` 命中桌面断点但没有稳定 hover，导致按钮看起来像被取消。
+- [x] 调整为：触屏设备（`navigator.maxTouchPoints > 0`）始终显示这些管理按钮，鼠标设备继续保留 hover 显示。
+- [x] 同步覆盖 `Earn` / `Spend` 任务卡片，以及 `Daily Screen Limit` / `Eye Rest Cooldown` 两处铅笔按钮。
+- [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+- [x] 本地浏览器 iPad UA 视口复测：首页任务编辑/删除按钮与设置铅笔按钮重新可见。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)

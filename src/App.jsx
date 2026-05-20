@@ -23,6 +23,7 @@ function App() {
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(0);
   const [todayStr, setTodayStr] = useState('');
+  const hasTouchInput = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 
   // Update clock-derived state outside render for lint-safe realtime tracking.
   useEffect(() => {
@@ -259,6 +260,14 @@ function App() {
     );
   }
 
+  const taskControlClass = hasTouchInput
+    ? 'opacity-100'
+    : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity';
+
+  const inlineEditControlClass = hasTouchInput
+    ? 'text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 z-30'
+    : 'text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30';
+
   return (
     <>
       {!hasSeenOnboarding && <Onboarding onComplete={completeOnboarding} />}
@@ -340,7 +349,7 @@ function App() {
                   </button>
                   
                   {/* Edit/Delete Controls */}
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col md:flex-row gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                  <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex flex-col md:flex-row gap-2 ${taskControlClass}`}>
                     <button onClick={() => promptEditTask(task, 'earn')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-green">
                       <Pencil size={14} />
                     </button>
@@ -386,7 +395,7 @@ function App() {
                     {actualTodaySpent} / {dailyCap}m
                   </span>
                 </div>
-                <button onClick={handleEditDailyCap} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
+                <button onClick={handleEditDailyCap} className={inlineEditControlClass}>
                   <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
                 </button>
               </div>
@@ -395,7 +404,7 @@ function App() {
                   <span className="text-gray-400">Eye Rest Cooldown:</span>
                   <span className="text-white font-mono font-bold">{cooldownDuration}m</span>
                 </div>
-                <button onClick={handleEditCooldown} className="text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30">
+                <button onClick={handleEditCooldown} className={inlineEditControlClass}>
                   <Pencil size={12} className="md:w-[14px] md:h-[14px]" />
                 </button>
               </div>
@@ -424,7 +433,7 @@ function App() {
                   </button>
 
                   {/* Edit/Delete Controls */}
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30">
+                  <div className={`absolute top-2 right-2 flex gap-1 z-30 ${taskControlClass}`}>
                     <button onClick={() => promptEditTask(task, 'spend')} className="bg-gray-800/80 backdrop-blur-sm text-gray-300 hover:text-white p-2 rounded-full shadow-lg border border-gray-600 hover:border-brand-red">
                       <Pencil size={14} />
                     </button>
