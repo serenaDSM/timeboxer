@@ -22,9 +22,14 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const alarmModeRef = useRef(null);
   const focusBreakTimeoutRef = useRef(null);
   const wakeLockRef = useRef(null);
-  const isMobileDevice = typeof navigator !== 'undefined' && (
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024)
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIPadDevice = typeof navigator !== 'undefined' && (
+    /iPad/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && /Mobile/i.test(userAgent) && navigator.maxTouchPoints > 0)
+  );
+  const isPhoneDevice = typeof navigator !== 'undefined' && !isIPadDevice && (
+    /Android|iPhone|iPod/i.test(userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.innerWidth <= 768)
   );
 
   const playToneSequence = useCallback((steps) => {
@@ -114,7 +119,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   }, []);
 
   const requestWakeLock = useCallback(async () => {
-    if (!isMobileDevice || !('wakeLock' in navigator) || wakeLockRef.current) return;
+    if (!isPhoneDevice || !('wakeLock' in navigator) || wakeLockRef.current) return;
     try {
       const lock = await navigator.wakeLock.request('screen');
       wakeLockRef.current = lock;
@@ -126,7 +131,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     } catch {
       // Some mobile browsers still do not allow wake lock.
     }
-  }, [isMobileDevice]);
+  }, [isPhoneDevice]);
 
   const getAlarmSteps = useCallback((mode) => (
     mode === 'warning'
@@ -210,7 +215,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   }, [clearPendingFocusBreak, releaseWakeLock, stopContinuousAlarm]);
 
   useEffect(() => {
-    if (!isEarnMode || isOvertime || !isMobileDevice) return undefined;
+    if (!isEarnMode || isOvertime || !isPhoneDevice) return undefined;
 
     const syncWakeLock = () => {
       if (isActive && !document.hidden) {
@@ -227,7 +232,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       document.removeEventListener('visibilitychange', syncWakeLock);
       releaseWakeLock();
     };
-  }, [isActive, isEarnMode, isMobileDevice, isOvertime, releaseWakeLock, requestWakeLock]);
+  }, [isActive, isEarnMode, isPhoneDevice, isOvertime, releaseWakeLock, requestWakeLock]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {
@@ -265,14 +270,14 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
   const pauseForFocusBreak = useCallback(() => {
     if (!isEarnMode || isOvertime) return;
     if (!isActive && showWarning) {
-      if (!isMobileDevice) startContinuousAlarm('warning');
+      if (!isPhoneDevice) startContinuousAlarm('warning');
       return;
     }
     freezeTimer();
     setIsActive(false);
     setShowWarning(true);
-    if (!isMobileDevice) startContinuousAlarm('warning');
-  }, [freezeTimer, isActive, isEarnMode, isMobileDevice, isOvertime, showWarning, startContinuousAlarm]);
+    if (!isPhoneDevice) startContinuousAlarm('warning');
+  }, [freezeTimer, isActive, isEarnMode, isOvertime, isPhoneDevice, showWarning, startContinuousAlarm]);
 
   // Security checks
   useEffect(() => {
@@ -280,11 +285,11 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     const focusBreakDelayMs = 180;
 
     const scheduleFocusBreakCheck = () => {
-      if (!isEarnMode || isOvertime || document.hidden) return;
+      if (!isEarnMode || isOvertime || (document.hidden && !isIPadDevice)) return;
       clearPendingFocusBreak();
       focusBreakTimeoutRef.current = window.setTimeout(() => {
         focusBreakTimeoutRef.current = null;
-        if (!document.hidden && !document.hasFocus()) {
+        if ((!document.hidden || isIPadDevice) && !document.hasFocus()) {
           pauseForFocusBreak();
         }
       }, focusBreakDelayMs);
@@ -292,8 +297,10 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        clearPendingFocusBreak();
-        if (isMobileDevice && isEarnMode && !isOvertime) {
+        if (!isIPadDevice) {
+          clearPendingFocusBreak();
+        }
+        if (isPhoneDevice && isEarnMode && !isOvertime) {
           pauseForFocusBreak();
         }
         return;
@@ -319,7 +326,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     };
 
     const checkWindowFocus = () => {
-      if (isEarnMode && !isOvertime && !document.hidden && !document.hasFocus()) {
+      if (isEarnMode && !isOvertime && !isIPadDevice && !document.hidden && !document.hasFocus()) {
         scheduleFocusBreakCheck();
       }
     };
@@ -343,7 +350,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       window.clearInterval(focusCheckInterval);
       clearPendingFocusBreak();
     };
-  }, [clearPendingFocusBreak, isEarnMode, isMobileDevice, isOvertime, pauseForFocusBreak]);
+  }, [clearPendingFocusBreak, isEarnMode, isIPadDevice, isOvertime, isPhoneDevice, pauseForFocusBreak]);
 
   // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {

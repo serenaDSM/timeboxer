@@ -150,6 +150,14 @@
 - [x] 本地浏览器桌面端 UA 实测：模拟 `hidden` 后时间从 `29:30` 继续到 `29:28`，无暂停警告。
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
 
+### [2026-05-20] 行为调整：iPad Earn 按电脑端处理
+- [x] 将 `iPad` 从手机静音分支中拆出，改为像电脑端一样：离开计时器会暂停 Earn 并触发 warning 报警。
+- [x] `iPhone/手机` 仍保持静音暂停规则；`iPad` 与桌面端继续保留 warning 报警。
+- [x] `iPad` 黑屏场景不依赖 `hidden` 触发暂停；只有切 App 造成的失焦链路才会触发暂停与报警。
+- [x] 本地浏览器 iPad UA 实测：模拟 `blur` 后 `50ms` 进入 `hidden`，剩余时间冻结且出现暂停警告，并触发一次 warning 报警启动。
+- [x] 本地浏览器 iPad UA 实测：纯 `hidden` 场景下时间从 `29:39` 继续到 `29:36`，无暂停警告、无报警。
+- [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)
