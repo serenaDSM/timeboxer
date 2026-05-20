@@ -188,6 +188,12 @@
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
 - [x] 本地浏览器 iPad UA 视口截图复测：任务标题、奖励文本、编辑/删除按钮已分离，不再遮挡。
 
+### [2026-05-20] 行为调整：Spend Time 提前退出取消家长密码
+- [x] 将 `Spend Time` 的提前退出从 PIN 弹窗改为直接退出，不再要求输入家长密码。
+- [x] 保留原有按已使用时长按比例结算 `Spend` 消耗分钟数的逻辑。
+- [x] `Earn Time` 与 `Overtime Bonus` 的退出 PIN 规则保持不变。
+- [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)

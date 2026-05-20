@@ -496,14 +496,16 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         openPinPrompt({ type: 'earnExit' });
       }
     } else {
-      // Spend mode early exit
+      // Spend mode early exit without parent PIN
       const currentTimeLeft = targetEndAtRef.current
         ? Math.max(0, Math.ceil((targetEndAtRef.current - Date.now()) / 1000))
         : timeLeft;
       setTimeLeft(currentTimeLeft);
       targetEndAtRef.current = null;
       setIsActive(false);
-      openPinPrompt({ type: 'spendExit', timeLeft: currentTimeLeft });
+      const playedSeconds = (duration * 60) - currentTimeLeft;
+      const playedMinutes = Math.ceil(playedSeconds / 60);
+      onCancel(playedMinutes);
     }
   };
 
