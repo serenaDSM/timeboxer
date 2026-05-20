@@ -264,6 +264,10 @@ function App() {
     ? 'opacity-100'
     : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity';
 
+  const earnTaskButtonPaddingClass = hasTouchInput
+    ? 'pr-28 md:pr-32'
+    : 'pr-14 md:pr-5';
+
   const inlineEditControlClass = hasTouchInput
     ? 'text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 z-30'
     : 'text-gray-500 hover:text-white p-1 rounded transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 z-30';
@@ -334,7 +338,7 @@ function App() {
                 <div key={task.id} className="relative group flex items-center bg-white/5 hover:bg-white/10 transition-colors rounded-2xl border border-transparent hover:border-brand-green/30">
                   <button 
                     onClick={() => handleTaskClick(task.duration, task.reward)}
-                    className="flex-1 flex items-center justify-between p-4 md:p-5 pr-14 md:pr-5"
+                    className={`flex-1 flex items-center justify-between p-4 md:p-5 ${earnTaskButtonPaddingClass}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className="bg-brand-green/10 p-3 rounded-xl text-brand-green group-hover:scale-110 transition-transform">
