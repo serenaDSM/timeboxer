@@ -167,6 +167,14 @@
 - [x] 本地浏览器 iPad UA 实测：纯 `hidden` 场景下时间从 `29:50` 继续到 `29:48`，无暂停警告，warning 音源保持静音预热。
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
 
+### [2026-05-20] 规则补齐：Overtime Bonus 继承 Earn 防切屏限制
+- [x] 将 `overtime bonus` 纳入和普通 `earn` 相同的焦点/全屏限制，不再允许超时阶段离开计时器后继续累计奖励时间。
+- [x] 手机端 `earn` 的静音暂停规则、桌面端/iPad 的 warning 报警规则，现已同时覆盖到 `overtime bonus`。
+- [x] 恢复 `overtime` 暂停后重新开始时，同样要求保持计时器页面的最大化/全屏约束。
+- [x] 本地浏览器 iPad UA 实测：以 `TARGET 0M` 直接进入 `OVERTIME BONUS`，模拟 `blur` 后 `50ms` 进入 `hidden`，计时停在 `+00:14`，显示暂停警告，warning 音量从 `0.0001` 提升到 `0.9`。
+- [x] 本地浏览器 iPad UA 实测：`OVERTIME BONUS` 纯 `hidden` 场景下时间从 `+00:12` 继续到 `+00:14`，无暂停警告，维持黑屏例外规则。
+- [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)
