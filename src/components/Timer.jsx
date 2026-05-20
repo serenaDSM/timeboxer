@@ -101,6 +101,17 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     alarmModeRef.current = null;
   }, []);
 
+  const setAlarmVolume = useCallback((volume) => {
+    if (!alarmContextRef.current || !alarmGainRef.current) return;
+    const ctx = alarmContextRef.current;
+    const gain = alarmGainRef.current.gain;
+    gain.cancelScheduledValues(ctx.currentTime);
+    gain.setValueAtTime(volume, ctx.currentTime);
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  }, []);
+
   const clearPendingFocusBreak = useCallback(() => {
     if (!focusBreakTimeoutRef.current) return;
     window.clearTimeout(focusBreakTimeoutRef.current);
@@ -174,8 +185,13 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     return buffer;
   }, []);
 
-  const startContinuousAlarm = useCallback((mode = 'exit') => {
-    if (alarmSourceRef.current && alarmModeRef.current === mode) return;
+  const startContinuousAlarm = useCallback((mode = 'exit', { armed = false } = {}) => {
+    const volume = armed ? 0.0001 : 0.9;
+
+    if (alarmSourceRef.current && alarmModeRef.current === mode) {
+      setAlarmVolume(volume);
+      return;
+    }
 
     stopContinuousAlarm();
 
@@ -188,7 +204,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       const gain = ctx.createGain();
       source.buffer = createAlarmLoopBuffer(ctx, getAlarmSteps(mode));
       source.loop = true;
-      gain.gain.setValueAtTime(0.9, ctx.currentTime);
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
       source.connect(gain);
       gain.connect(ctx.destination);
 
@@ -204,7 +220,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
     } catch {
       // Audio is best-effort; browsers may still block it in some edge cases.
     }
-  }, [createAlarmLoopBuffer, getAlarmSteps, stopContinuousAlarm]);
+  }, [createAlarmLoopBuffer, getAlarmSteps, setAlarmVolume, stopContinuousAlarm]);
 
   useEffect(() => {
     return () => {
@@ -233,6 +249,19 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       releaseWakeLock();
     };
   }, [isActive, isEarnMode, isPhoneDevice, isOvertime, releaseWakeLock, requestWakeLock]);
+
+  useEffect(() => {
+    if (!isIPadDevice) return undefined;
+
+    if (isEarnMode && !isOvertime && isActive && !showWarning && !pinPrompt) {
+      startContinuousAlarm('warning', { armed: true });
+      return undefined;
+    }
+
+    if (alarmModeRef.current === 'warning' && (!showWarning || pinPrompt || !isEarnMode || isOvertime)) {
+      stopContinuousAlarm();
+    }
+  }, [isActive, isEarnMode, isIPadDevice, isOvertime, pinPrompt, showWarning, startContinuousAlarm, stopContinuousAlarm]);
 
   const syncTimerFromClock = useCallback(() => {
     if (!targetEndAtRef.current) {

@@ -158,6 +158,15 @@
 - [x] 本地浏览器 iPad UA 实测：纯 `hidden` 场景下时间从 `29:39` 继续到 `29:36`，无暂停警告、无报警。
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
 
+### [2026-05-20] Bug 修复：iPad warning 报警偶发不响
+- [x] 定位到根因：iPad 的 warning 报警在离开 App 时已切到高音量，但随后被预热清理分支误关停，导致听感上出现“有时候响、有时候不响”。
+- [x] 将 iPad warning 报警改为前台预热循环音源，触发时只提升音量，不再在后台临时新建音频上下文。
+- [x] 修正预热清理条件：只有离开 warning 状态、进入 PIN 弹窗、切出 Earn 或进入 overtime 时才停止 warning 音源。
+- [x] 本地浏览器 iPad UA 实测：进入 Earn 后只创建 `0.0001` 音量预热音源，没有立即触发可听警报。
+- [x] 本地浏览器 iPad UA 实测：模拟 `blur` 后 `50ms` 进入 `hidden`，剩余时间停在 `29:32`，warning 音量从 `0.0001` 提升到 `0.9`，且不再被后续逻辑关停。
+- [x] 本地浏览器 iPad UA 实测：纯 `hidden` 场景下时间从 `29:50` 继续到 `29:48`，无暂停警告，warning 音源保持静音预热。
+- [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)
