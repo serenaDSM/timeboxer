@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.vite
 dist
 dist-ssr
+macos/TimeBoxerMac/.build
+macos/TimeBoxerMac/build
 *.local
 
 # Editor directories and files

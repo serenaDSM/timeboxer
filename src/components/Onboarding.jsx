@@ -1,67 +1,111 @@
-import { ShieldAlert, Lock, PlayCircle, PlusCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, ArrowRight, Check, Moon, Sparkles } from 'lucide-react';
+import { POLICY_PRESETS } from '../policy.js';
+import BrandLogo from './BrandLogo.jsx';
 
 export default function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(1);
+  const [childName, setChildName] = useState('Alex');
+  const [age, setAge] = useState(11);
+  const [bedtime, setBedtime] = useState('20:30');
+  const [presetId, setPresetId] = useState('balanced');
+  const preset = POLICY_PRESETS[presetId];
+
+  const finish = () => onComplete({
+    profile: { childName: childName.trim() || 'Alex', age: Number(age), bedtime },
+    presetId,
+  });
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-start md:items-center justify-center p-2 md:p-4 overflow-y-auto">
-      <div className="bg-[#111] border border-white/10 rounded-3xl p-5 md:p-8 max-w-2xl w-full text-left shadow-2xl relative overflow-hidden my-auto">
-        {/* Decorative background glow */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-green/10 blur-[100px] rounded-full pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-brand-red/10 blur-[100px] rounded-full pointer-events-none"></div>
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#f6f7f9] text-slate-950">
+      <div className="mx-auto flex min-h-full w-full max-w-xl flex-col justify-center px-5 py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div><BrandLogo compact /><div className="mt-1 pl-11 text-xs text-slate-500">Family setup</div></div>
+          <div className="text-sm font-semibold text-slate-400">{step} / 3</div>
+        </div>
 
-        <div className="relative z-10">
-          <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter mb-1 md:mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">
-            WELCOME TO <span className="text-brand-green drop-shadow-[0_0_10px_rgba(57,255,20,0.5)]">TIMEBOXER</span>
-          </h2>
-          <p className="text-gray-400 mb-4 md:mb-8 font-mono text-sm border-b border-white/10 pb-3 md:pb-4">硬核防沉迷 · 儿童时间管理系统</p>
-          
-          <div className="space-y-4 md:space-y-6">
-            <div className="flex gap-4 items-start">
-              <div className="bg-brand-green/10 p-3 rounded-xl text-brand-green shrink-0">
-                <PlayCircle size={24} />
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 sm:p-8">
+          {step === 1 && (
+            <div>
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <Sparkles size={24} />
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-white mb-1">赚取时间 (Earn Time)</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">必须完成设定的基础时间，否则收益为 0！完成目标后将无缝开启<strong className="text-[#FFD700]">“超额秒表”</strong>，多坚持一分钟就多赚一分钟。</p>
+              <h1 className="text-3xl font-black tracking-tight">Let’s set up your child</h1>
+              <p className="mt-2 text-slate-500">Just the essentials. You can change these later.</p>
+              <div className="mt-8 space-y-5">
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">Child’s name</span>
+                  <input value={childName} onChange={(event) => setChildName(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">Age</span>
+                  <input type="number" min="5" max="17" value={age} onChange={(event) => setAge(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500" />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-bold text-slate-700">Usual bedtime</span>
+                  <div className="relative mt-2">
+                    <Moon className="absolute left-4 top-3.5 text-slate-400" size={18} />
+                    <input type="time" value={bedtime} onChange={(event) => setBedtime(event.target.value)} className="w-full rounded-2xl border border-slate-200 py-3 pl-12 pr-4 outline-none focus:border-emerald-500" />
+                  </div>
+                </label>
               </div>
             </div>
-            
-            <div className="flex gap-4 items-start">
-              <div className="bg-brand-red/10 p-3 rounded-xl text-brand-red shrink-0">
-                <ShieldAlert size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-white mb-1">强管控消费 (Spend Time)</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">家长可随时修改<strong className="text-white">“每日最大屏幕限额”</strong>。每次结束娱乐后，系统将强制进入不可逆的<strong className="text-red-500">“护眼冷却期”</strong>，杜绝连续沉迷。</p>
-              </div>
-            </div>
+          )}
 
-            <div className="flex gap-4 items-start">
-              <div className="bg-blue-500/10 p-3 rounded-xl text-blue-500 shrink-0">
-                <Lock size={24} />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg text-white mb-1">家长锁 (默认密码: <span className="bg-blue-500/20 px-2 py-0.5 rounded font-mono">1234</span>)</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">增删任务、修改限额、提前强退计时，均需要密码！进入应用后请点击右上角 <strong className="text-white">⚙️ 图标</strong> 立即修改您的专属密码。</p>
+          {step === 2 && (
+            <div>
+              <h1 className="text-3xl font-black tracking-tight">Choose a simple plan</h1>
+              <p className="mt-2 text-slate-500">These limits apply to entertainment, not schoolwork.</p>
+              <div className="mt-7 space-y-3">
+                {Object.values(POLICY_PRESETS).map((item) => (
+                  <button key={item.id} type="button" onClick={() => setPresetId(item.id)} className={`w-full rounded-2xl border p-5 text-left transition ${presetId === item.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="font-black">{item.name}</div>
+                      {presetId === item.id && <Check size={20} className="text-emerald-600" />}
+                    </div>
+                    <div className="mt-1 text-sm text-slate-500">{item.description}</div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+                      <div className="rounded-xl bg-white p-2"><strong>{item.schoolLimit}m</strong><span className="block text-xs text-slate-400">School</span></div>
+                      <div className="rounded-xl bg-white p-2"><strong>{item.weekendLimit}m</strong><span className="block text-xs text-slate-400">Weekend</span></div>
+                      <div className="rounded-xl bg-white p-2"><strong>{item.holidayLimit}m</strong><span className="block text-xs text-slate-400">Holiday</span></div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
+          )}
 
-            <div className="flex gap-4 items-start">
-              <div className="bg-purple-500/10 p-3 rounded-xl text-purple-500 shrink-0">
-                <PlusCircle size={24} />
+          {step === 3 && (
+            <div>
+              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <Check size={24} />
               </div>
-              <div>
-                <h3 className="font-bold text-lg text-white mb-1">完全自定义 (Customization)</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">点击区域标题旁的 <strong>+</strong> 号自由创建任务，或点击卡片上的 <strong>✏️ 小铅笔</strong> 随时修改任务参数。您可以巧妙设置（如：玩15分钟扣除30个币）来实现“防沉迷汇率”。</p>
+              <h1 className="text-3xl font-black tracking-tight">Your plan is ready</h1>
+              <p className="mt-2 text-slate-500">A clear starting point that your family can review together.</p>
+              <div className="mt-7 rounded-2xl bg-slate-950 p-5 text-white">
+                <div className="text-sm text-slate-400">{childName || 'Alex'}’s plan</div>
+                <div className="mt-1 text-xl font-black">{preset.name}</div>
+                <div className="mt-5 space-y-3 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-400">School days</span><strong>{preset.schoolLimit} minutes</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Weekends</span><strong>{preset.weekendLimit} minutes</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Holidays</span><strong>{preset.holidayLimit} minutes</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Entertainment ends</span><strong>1 hour before bed</strong></div>
+                </div>
               </div>
+              <p className="mt-5 text-xs leading-relaxed text-slate-400">The public-health screen guideline is a ceiling, not a target. TimeBoxer starts with a shorter family allowance.</p>
             </div>
+          )}
+
+          <div className="mt-8 flex gap-3">
+            {step > 1 && (
+              <button type="button" onClick={() => setStep(step - 1)} className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-600 hover:bg-slate-50">
+                <ArrowLeft size={18} /> Back
+              </button>
+            )}
+            <button type="button" onClick={() => step === 3 ? finish() : setStep(step + 1)} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#35d532] px-5 py-3 font-black text-slate-950 hover:bg-emerald-400">
+              {step === 3 ? 'Start this plan' : 'Continue'} {step < 3 && <ArrowRight size={18} />}
+            </button>
           </div>
-
-          <button 
-            onClick={onComplete}
-            className="mt-6 md:mt-10 w-full py-3 md:py-4 rounded-xl bg-brand-green text-black font-bold text-base md:text-lg tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(57,255,20,0.3)] hover:shadow-[0_0_30px_rgba(255,255,255,0.6)] transform hover:-translate-y-1"
-          >
-            我已了解，立即开始体验
-          </button>
         </div>
       </div>
     </div>

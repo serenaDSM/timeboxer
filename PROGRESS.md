@@ -19,7 +19,7 @@
 
 ### 2. 消费区 (SPEND TIME)：防沉迷强管控系统
 * **每日动态限额 (Daily Cap)**：引入 `Today's Limit` 概念。家长可通过密码随时修改当日上限（如上学日 20 分钟，周末 120 分钟）。哪怕余额有几百分钟，当天消费达到上限后，所有消费任务立刻锁定。
-* **用眼冷却期 (Cooldown)**：每次完成消费任务后，SPEND 区域自动进入 30 分钟强制冷却期，倒计时结束前无法再次开始娱乐。
+* **用眼冷却期 (Cooldown)**：每次完整完成消费任务后，SPEND 区域自动进入可由家长配置的强制冷却期（默认 20 分钟），倒计时结束前无法再次开始娱乐；提前结束不触发冷却。
 * **自由汇率调控 (Inflation)**：通过自定义任务功能，家长可自由设定“实际游玩时间”与“消耗时间币”的比例（例如：玩 15 分钟游戏，扣除 30 个时间币），实现汇率贬值。
 * *(注：支持提前结束消费并退还剩余时间币，取消“一票买断制”)*。
 
@@ -193,6 +193,79 @@
 - [x] 保留原有按已使用时长按比例结算 `Spend` 消耗分钟数的逻辑。
 - [x] `Earn Time` 与 `Overtime Bonus` 的退出 PIN 规则保持不变。
 - [x] 已重新运行 `npm run lint` 与 `npm run build`，均通过。
+
+### [2026-08-12] Codex 接手：工程基线与规则安全修复
+- [x] 移除 Git 远程地址中的明文访问令牌，恢复为普通 GitHub HTTPS 地址。
+- [x] 隔离并清理异常的重复依赖/缓存目录，使用 `package-lock.json` 完成干净安装。
+- [x] 将 `.vite` 加入忽略规则并移除已提交的构建缓存，避免工具链状态污染仓库。
+- [x] 删除未被引用的重复 `src/Timer.jsx`，保留 `src/components/Timer.jsx` 为唯一计时器实现。
+- [x] 移除对外部 Mixkit 完成提示音的依赖，保留计时器内建 Web Audio 提示音。
+- [x] 集中任务输入与 Spend 按比例扣费规则，禁止负数奖励/成本和非整数分钟。
+- [x] 新增 Node 原生业务规则测试；`npm test` 共 5 项通过。
+- [x] 更新 README、冷却期说明和 Spend 提前退出引导文案，使文档与实际行为一致。
+- [x] `npm run lint` 与 `npm run build` 均通过；本地浏览器首页/引导交互正常且无控制台错误。
+
+### [2026-08-14] v4.0 轻量家庭规则与双端联动原型
+- [x] 将单一 `dailyCap` 升级为 School Day、Weekend、Holiday 日期规则引擎。
+- [x] 内置 Strict Reset（20/40/60）和 Balanced（30/60/90）两套轻量模板，保留自定义额度。
+- [x] 增加独立 Child View 与 PIN 保护的 Parent Dashboard，整体界面改为简洁浅色家庭产品风格。
+- [x] 孩子端统一显示 `Today available`，自动受时间币余额、今日剩余额度和单次上限约束。
+- [x] 增加睡前 60 分钟禁用、120 分钟健康硬上限，以及按实际连续使用时长触发的休息规则。
+- [x] 增加孩子额外 10 分钟申请、家长批准/拒绝、孩子状态和家庭活动流。
+- [x] 增加跨标签页 LocalStorage 实时重载，完成孩子申请 → 家长审批 → 孩子额度更新的双端联动演示。
+- [x] 增加日期类型、模板上限、今日可用时间、缩短娱乐时长、睡前限制和冷却规则测试；共 10 项通过。
+- [x] `npm run lint`、`npm test`、`npm run build` 全部通过；双端浏览器验证无新控制台错误。
+- [ ] 下一步：将本地联动抽象接入云端家庭账户、设备绑定和推送服务。
+
+### [2026-08-15] macOS 原生控制原型 0.1
+- [x] 创建 `macos/TimeBoxerMac` Swift Package 和可组装 `.app` 的目录结构。
+- [x] 使用 AppKit + WKWebView 加载现有 React 界面，Vite 生产资源改为相对路径以支持应用内加载。
+- [x] 增加 JavaScript → Swift 事件桥，传递任务开始、规则拦截和额外时间申请。
+- [x] 增加 Swift → React 回传：原生应用拦截进入家庭活动流，Shield 的 Ask Parent 会创建额外时间申请。
+- [x] 将孩子姓名、睡觉时间、三类日期额度、今日使用量和临时加时同步到原生策略文件。
+- [x] 使用 `NSWorkspace` 监听应用启动/激活，并每 5 秒检查当前前台应用，覆盖娱乐时长在游戏运行期间到期的情况。
+- [x] 实现全屏 Shield，保留 Earn、Ask Parent 与 Return to Homework 三个安全出口。
+- [x] 加入 `SMAppService` Start at Login 开关，但不静默注册。
+- [x] 默认使用 `observe` 模式；只有策略明确设为 `enforce` 时才请求已列入黑名单的应用正常退出，且不执行 force terminate。
+- [x] 增加 Swift 规则测试源码、示例策略、`.app` 组装和 ad-hoc 签名脚本。
+- [x] 所有 Swift 源码通过编译器语法解析；Web 端 lint、10 项测试和生产构建通过。
+- [x] 安装并选择 Xcode 16.4，完成原生 Release 链接、`.app` 组装和严格签名校验。
+- [x] 将 Swift Testing 测试迁移到 XCTest，并通过 Xcode 的 `xctest` 实际执行 4 项规则测试，全部通过。
+- [x] 修复 `main.swift` 双重启动入口、打包扩展属性导致的签名失败，以及 ESLint 误扫描原生构建产物的问题。
+- [x] 将 TimeBoxer 安装到 `/Applications/TimeBoxer.app` 并成功启动；默认仍为 `observe` 模式。
+- [x] 完成 Apple/Xcode 许可确认和首次组件初始化；标准 `npm run mac:test` 与 `npm run mac:build` 均已通过。
+- [ ] 下一步进行 Shield 手动演示、测试应用观察/拦截和孩子端—家长端联动验收。
+
+### [2026-08-16] macOS 原生运行链路稳定化
+- [x] 修复 WKWebView 给本地文件 URL 添加查询/片段参数导致的 `NSInvalidArgumentException`。
+- [x] 将孩子端/家长端切换改为 Swift → React 原生事件，不再反复重载 WKWebView。
+- [x] 增加 React `web-ready` 握手和 Swift 事件队列，页面未就绪时不丢失 Shield 申请或应用观察事件。
+- [x] 在 macOS 打包阶段内联 Vite JS/CSS，绕过 WebKit 对 `file://` 模块子资源的限制；Web 部署产物保持分离资源。
+- [x] 修复 Shield 应用名插值和无边框窗口无法成为 Key/Main Window 的交互问题。
+- [x] 为前台应用观察事件增加同应用、同原因一分钟去重，避免家长活动流每 5 秒重复刷屏。
+- [x] 真实运行确认 React → Swift `web-ready` 与 `policy-snapshot` 到达，原生策略文件成功刷新。
+- [x] 原生 4 项 XCTest、Web 10 项规则测试、lint、Web 构建与 macOS Release 打包全部通过。
+
+### [2026-08-16] 双端与 Shield 验收
+- [x] 浏览器实际点击完成孩子申请 10 分钟 → 错误 PIN 拒绝 → 正确 PIN 解锁 → 家长批准 → 孩子余额同步增加的完整流程。
+- [x] 安装版以 Demo Shield 模式实际启动并完成截图核对，确认原生全屏窗口与三个安全出口正常显示。
+- [x] 修复 Shield 长英文标题被截断的问题，改为最多两行完整显示；重新通过 4 项 XCTest、Release 构建、安装和签名校验。
+- [x] 验收结束后恢复 `/Applications/TimeBoxer.app` 的正常 `observe` 模式运行。
+- [x] 品牌方向确认：使用原版绿色线框立方体 + 银灰 `TIME` + 绿色 `BOXER` 的单一页眉 Logo；白色底板、绿色主色、清晰简洁，保留新版内容结构。
+- [x] 品牌首轮落地：孩子端、家长端、PIN 页面和首次设置页统一接入单一绿色立方体 + `TIMEBOXER` 字标，采用白色底板、绿色主色和紫色 Play 辅助色；不使用 `public/logo.png` 的罗盘图。
+- [x] 孩子端按确认稿重组为计划/可用时间/今日使用三块摘要卡、Earn/Play 双栏和底部加时申请，同时保留全部新版内容与规则逻辑。
+- [x] 本地浏览器与 `/Applications/TimeBoxer.app` 安装版均完成截图核对，确认不再显示旧深蓝摘要卡，页面只有一个品牌 Logo。
+- [ ] 品牌第二轮落地：制作 macOS `.icns` 应用图标、菜单栏模板图标和 Shield 原生品牌组件。
+
+### [2026-08-16] 家长快速测试工具
+- [x] 在 PIN 保护的 Parent Dashboard 增加 `Parent-only testing tools`，支持直接设置 0–600 分钟测试时间币。
+- [x] 支持 Real time、10 秒、30 秒、60 秒快捷档和 1–300 秒自定义倒计时。
+- [x] 快速倒计时只压缩等待时间，完整结束仍按原任务分钟结算奖励、扣费、每日额度与护眼休息。
+- [x] 快速测试模式临时跳过 Earn 全屏检查；切回 Real time 后原全屏、防缩小和防切屏要求立即恢复。
+- [x] 为计时器暂停、退出和领取奖励按钮增加无障碍名称，提升孩子操作可读性和自动化测试稳定性。
+- [x] 浏览器实际完成 10 秒 Play：30 时间币 → 0、今日使用 0 → 30、护眼冷却触发。
+- [x] 浏览器实际完成 10 秒 Earn：进入 Overtime、领取后增加 30 时间币。
+- [x] Web lint、11 项规则测试、生产构建、4 项 macOS XCTest、Release 打包、安装与签名校验全部通过。
 
 ---
 

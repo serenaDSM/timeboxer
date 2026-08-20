@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, X, Trophy } from 'lucide-react';
+import { getPlayedMinutesForCountdown } from '../rules';
 
-export default function Timer({ mode, duration, parentPIN, onComplete, onCancel }) {
-  const [timeLeft, setTimeLeft] = useState(duration * 60);
+export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN, onComplete, onCancel }) {
+  const initialCountdownSeconds = testTimerSeconds > 0 ? testTimerSeconds : duration * 60;
+  const [timeLeft, setTimeLeft] = useState(initialCountdownSeconds);
   const [isActive, setIsActive] = useState(true);
   const [showWarning, setShowWarning] = useState(false);
   
@@ -310,6 +312,8 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
 
   // Security checks
   useEffect(() => {
+    if (testTimerSeconds > 0) return undefined;
+
     let focusCheckInterval = null;
     const focusBreakDelayMs = 180;
 
@@ -379,7 +383,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       window.clearInterval(focusCheckInterval);
       clearPendingFocusBreak();
     };
-  }, [clearPendingFocusBreak, isEarnMode, isIPadDevice, isPhoneDevice, pauseForFocusBreak]);
+  }, [clearPendingFocusBreak, isEarnMode, isIPadDevice, isPhoneDevice, pauseForFocusBreak, testTimerSeconds]);
 
   // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {
@@ -478,8 +482,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       return;
     }
 
-    const playedSeconds = (duration * 60) - pinPrompt.timeLeft;
-    const playedMinutes = Math.ceil(playedSeconds / 60);
+    const playedMinutes = getPlayedMinutesForCountdown(duration, initialCountdownSeconds, pinPrompt.timeLeft);
     onCancel(playedMinutes);
   };
 
@@ -503,8 +506,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       setTimeLeft(currentTimeLeft);
       targetEndAtRef.current = null;
       setIsActive(false);
-      const playedSeconds = (duration * 60) - currentTimeLeft;
-      const playedMinutes = Math.ceil(playedSeconds / 60);
+      const playedMinutes = getPlayedMinutesForCountdown(duration, initialCountdownSeconds, currentTimeLeft);
       onCancel(playedMinutes);
     }
   };
@@ -524,6 +526,12 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       <div className={`text-2xl font-bold mb-8 uppercase tracking-widest ${titleColor} animate-pulse`}>
         {titleText}
       </div>
+
+      {testTimerSeconds > 0 && (
+        <div className="mb-5 rounded-full border border-brand-green/40 bg-brand-green/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-brand-green">
+          Quick test · {testTimerSeconds} sec represents {duration} min
+        </div>
+      )}
       
       <div className={`text-[120px] sm:text-[180px] leading-none font-mono font-bold tabular-nums tracking-tighter ${timeColor} drop-shadow-[0_0_30px_rgba(currentcolor,0.4)]`}>
         {isOvertime ? `+${formatTime(overtimeSeconds)}` : formatTime(timeLeft)}
@@ -532,6 +540,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
       <div className="mt-16 flex items-center gap-8">
         <button 
           onClick={toggleTimer}
+          aria-label={isActive ? 'Pause timer' : 'Resume timer'}
           className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
         >
           {isActive ? <Pause size={40} className="text-white" /> : <Play size={40} className="text-white ml-2" />}
@@ -539,6 +548,7 @@ export default function Timer({ mode, duration, parentPIN, onComplete, onCancel 
         
         <button 
           onClick={handleActionClick}
+          aria-label={isOvertime ? 'Claim reward' : isEarnMode ? 'Exit earn timer' : 'Exit spend timer'}
           className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors shadow-lg ${
             isOvertime 
               ? 'bg-[#FFD700]/20 hover:bg-[#FFD700]/40 text-[#FFD700] border border-[#FFD700]/50' 

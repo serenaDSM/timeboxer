@@ -1,0 +1,19 @@
+{
+  "bedtime": "20:30",
+  "bedtimeBufferMinutes": 60,
+  "blockedBundleIdentifiers": [
+    "com.valvesoftware.steam",
+    "com.roblox.Roblox",
+    "com.mojang.minecraftlauncher"
+  ],
+  "bonusMinutesToday": 0,
+  "childName": "Alex",
+  "dayOverride": null,
+  "enforcementMode": "observe",
+  "limits": {
+    "holiday": 90,
+    "school": 30,
+    "weekend": 60
+  },
+  "usedMinutesToday": 0
+}
