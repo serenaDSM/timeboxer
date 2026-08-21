@@ -49,6 +49,8 @@ function App() {
     pendingRequests,
     recentEvents,
     childStatus,
+    detectedApplications,
+    detectedApplicationsScannedAt,
     addMinutes,
     updateFamilyProfile,
     applyPreset,
@@ -58,6 +60,8 @@ function App() {
     resolveExtraTimeRequest,
     logEvent,
     setChildStatus,
+    setDetectedApplications,
+    setApplicationProtection,
     setTestTimerSeconds,
     setAvailableMinutes,
     setParentPIN,
@@ -109,6 +113,12 @@ function App() {
       if (detail.type === 'shield-request-extra') {
         submitExtraTimeRequest(Number(detail.payload?.minutes) || 10);
       }
+      if (detail.type === 'installed-apps-snapshot') {
+        setDetectedApplications(
+          detail.payload?.applications || [],
+          detail.payload?.scannedAt || Date.now(),
+        );
+      }
       if (detail.type === 'view-mode') {
         setRole(detail.payload?.view === 'parent' ? 'parent-locked' : 'child');
         setPinValue('');
@@ -117,7 +127,7 @@ function App() {
     };
     window.addEventListener('timeboxer:native-event', handleNativeEvent);
     return () => window.removeEventListener('timeboxer:native-event', handleNativeEvent);
-  }, [logEvent, submitExtraTimeRequest]);
+  }, [logEvent, setDetectedApplications, submitExtraTimeRequest]);
 
   useEffect(() => {
     notifyNative('web-ready');
@@ -164,6 +174,7 @@ function App() {
       usedMinutesToday: actualTodaySpent,
       bonusMinutesToday: earnedMinutesToday + parentBonusToday,
       restrictedDomains: policy.restrictedDomains,
+      blockedBundleIdentifiers: policy.blockedBundleIdentifiers,
       enforcementMode: 'enforce',
     });
   }, [
@@ -173,6 +184,7 @@ function App() {
     familyProfile.bedtime,
     familyProfile.childName,
     policy.bedtimeBufferMinutes,
+    policy.blockedBundleIdentifiers,
     policy.holidayLimit,
     policy.restrictedDomains,
     policy.schoolLimit,
@@ -451,6 +463,8 @@ function App() {
         parentBonusToday={parentBonusToday}
         testTimerSeconds={testTimerSeconds}
         childStatus={childStatus}
+        detectedApplications={detectedApplications}
+        detectedApplicationsScannedAt={detectedApplicationsScannedAt}
         pendingRequests={pendingRequests}
         recentEvents={recentEvents}
         earnTasks={earnTasks}
@@ -469,6 +483,7 @@ function App() {
         onChangePIN={changePIN}
         onSetTestTimerSeconds={setTestTimerSeconds}
         onSetAvailableMinutes={setAvailableMinutes}
+        onSetApplicationProtection={setApplicationProtection}
         onReset={resetData}
       />
     );

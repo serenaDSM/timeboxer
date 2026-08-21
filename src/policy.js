@@ -26,6 +26,17 @@ export const WEB_RESTRICTION_OPTIONS = [
 
 export const DEFAULT_RESTRICTED_DOMAINS = WEB_RESTRICTION_OPTIONS.map(({ domain }) => domain);
 
+export const DEFAULT_BLOCKED_APPLICATION_BUNDLE_IDENTIFIERS = [
+  'com.apple.TV',
+  'com.bilibili.bilibiliPC',
+  'com.iqiyi.player',
+  'com.mgtv.pcclientx',
+  'com.valvesoftware.steam',
+  'com.roblox.Roblox',
+  'com.mojang.minecraftlauncher',
+  'com.tencent.tenvideo',
+];
+
 export const POLICY_PRESETS = {
   strict: {
     id: 'strict',
@@ -42,6 +53,7 @@ export const POLICY_PRESETS = {
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
     restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
+    blockedBundleIdentifiers: [...DEFAULT_BLOCKED_APPLICATION_BUNDLE_IDENTIFIERS],
   },
   balanced: {
     id: 'balanced',
@@ -58,6 +70,7 @@ export const POLICY_PRESETS = {
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
     restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
+    blockedBundleIdentifiers: [...DEFAULT_BLOCKED_APPLICATION_BUNDLE_IDENTIFIERS],
   },
   collaborative: {
     id: 'collaborative',
@@ -74,11 +87,25 @@ export const POLICY_PRESETS = {
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
     restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
+    blockedBundleIdentifiers: [...DEFAULT_BLOCKED_APPLICATION_BUNDLE_IDENTIFIERS],
   },
 };
 
 export const DEFAULT_POLICY = { ...POLICY_PRESETS.balanced };
 export const PUBLIC_HEALTH_CEILING_MINUTES = 120;
+
+export function normalizeDomainInput(value = '') {
+  const input = String(value).trim().toLowerCase();
+  if (!input) return '';
+  try {
+    const url = new URL(input.includes('://') ? input : `https://${input}`);
+    const hostname = url.hostname.replace(/^www\./, '').replace(/\.$/, '');
+    if (!hostname || (!hostname.includes('.') && hostname !== 'localhost')) return '';
+    return hostname;
+  } catch {
+    return '';
+  }
+}
 
 export function getAutomaticDayType(date = new Date()) {
   const day = date.getDay();

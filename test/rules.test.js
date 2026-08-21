@@ -15,6 +15,7 @@ import {
   getMaximumDailyLimit,
   getTodayAvailableMinutes,
   isInsideBedtimeBlock,
+  normalizeDomainInput,
   POLICY_PRESETS,
   shouldTriggerCooldown,
   WEB_RESTRICTION_OPTIONS,
@@ -87,6 +88,12 @@ test('keeps the parent website choices inside every policy preset', () => {
   assert.equal(POLICY_PRESETS.collaborative.restrictedDomains.includes('poki.com'), true);
 });
 
+test('normalizes parent-entered website links to a safe domain', () => {
+  assert.equal(normalizeDomainInput(' https://www.YouTube.com/watch?v=abc '), 'youtube.com');
+  assert.equal(normalizeDomainInput('school.example.nz/homework'), 'school.example.nz');
+  assert.equal(normalizeDomainInput('not a website'), '');
+});
+
 test('shows the remaining current allowance after today’s use', () => {
   assert.equal(getTodayAvailableMinutes({ todaySpent: 20, dailyLimit: 30 }), 10);
   assert.equal(getTodayAvailableMinutes({ todaySpent: 0, dailyLimit: 20 }), 20);
@@ -152,6 +159,8 @@ test('shares one explicit family-state contract without store actions', () => {
     policy: { id: 'balanced' },
   });
   assert.equal(FAMILY_STATE_FIELDS.includes('dailyBonuses'), true);
+  assert.equal(FAMILY_STATE_FIELDS.includes('detectedApplications'), true);
+  assert.equal(FAMILY_STATE_FIELDS.includes('applicationProtectionOverrides'), true);
   assert.equal(familyStateFingerprint(source), familyStateFingerprint(shared));
   assert.equal(
     familyStateFingerprint({ policy: { id: 'balanced', schoolLimit: 20 } }),

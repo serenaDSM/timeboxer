@@ -120,12 +120,8 @@ export function useFamilySync() {
       };
     }
 
-    // During the local prototype the parent client is authoritative on first
-    // connection. Afterwards both clients exchange versioned state changes.
-    ready = true;
     setSyncStatus('connecting');
-    pushNow();
-    pollTimer = window.setInterval(async () => {
+    const pollRemote = async () => {
       try {
         const envelope = await fetchFamilyState();
         if (active && Number(envelope.revision) > lastRevision) {
@@ -140,7 +136,25 @@ export function useFamilySync() {
       } catch {
         if (active) setSyncStatus('disconnected');
       }
-    }, 750);
+    };
+
+    const connectParent = async () => {
+      try {
+        const envelope = await fetchFamilyState();
+        if (!active) return;
+        if (isFamilyStateEnvelope(envelope)) {
+          applyEnvelope(envelope);
+        }
+        ready = true;
+        if (!isFamilyStateEnvelope(envelope)) schedulePush();
+      } catch {
+        if (!active) return;
+        ready = true;
+        setSyncStatus('disconnected');
+      }
+      if (active) pollTimer = window.setInterval(pollRemote, 750);
+    };
+    connectParent();
 
     return () => {
       active = false;

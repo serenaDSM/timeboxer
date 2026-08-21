@@ -20,6 +20,9 @@ export const FAMILY_STATE_FIELDS = [
   'pendingRequests',
   'recentEvents',
   'childStatus',
+  'detectedApplications',
+  'detectedApplicationsScannedAt',
+  'applicationProtectionOverrides',
   'lastPolicyUpdatedAt',
 ];
 

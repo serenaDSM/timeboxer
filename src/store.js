@@ -35,6 +35,25 @@ const clampMinutes = (value, maximum = PUBLIC_HEALTH_CEILING_MINUTES) => (
   Math.min(maximum, Math.max(0, Math.round(Number(value) || 0)))
 );
 
+const normalizeDetectedApplications = (applications = []) => {
+  const byBundleIdentifier = new Map();
+  for (const application of applications) {
+    const bundleIdentifier = String(application?.bundleIdentifier || '').trim();
+    const name = String(application?.name || '').trim();
+    if (!bundleIdentifier || !name) continue;
+    byBundleIdentifier.set(bundleIdentifier, {
+      bundleIdentifier,
+      name,
+      category: application.category ? String(application.category) : null,
+      recommended: Boolean(application.recommended),
+    });
+  }
+  return [...byBundleIdentifier.values()].sort((left, right) => (
+    Number(right.recommended) - Number(left.recommended)
+      || left.name.localeCompare(right.name)
+  ));
+};
+
 const migratePolicy = (policy = {}) => {
   if (POLICY_PRESETS[policy.id]) return { ...POLICY_PRESETS[policy.id], ...policy };
   return {
@@ -71,6 +90,9 @@ const migratePersistedState = (persistedState = {}) => {
     pendingRequests: persistedState.pendingRequests || [],
     recentEvents: persistedState.recentEvents || [],
     childStatus: persistedState.childStatus || { kind: 'idle', updatedAt: Date.now() },
+    detectedApplications: normalizeDetectedApplications(persistedState.detectedApplications),
+    detectedApplicationsScannedAt: Number(persistedState.detectedApplicationsScannedAt) || 0,
+    applicationProtectionOverrides: persistedState.applicationProtectionOverrides || {},
     earnTasks: migrateEarnTasks(persistedState.earnTasks),
     spendTasks: migrateSpendTasks(persistedState.spendTasks),
     testTimerSeconds: Math.min(300, Math.max(0, Math.round(Number(persistedState.testTimerSeconds) || 0))),
@@ -100,6 +122,9 @@ export const useStore = create(
       pendingRequests: [],
       recentEvents: [],
       childStatus: { kind: 'idle', updatedAt: Date.now() },
+      detectedApplications: [],
+      detectedApplicationsScannedAt: 0,
+      applicationProtectionOverrides: {},
       lastPolicyUpdatedAt: Date.now(),
 
       addMinutes: (minutes) => set((state) => {
@@ -134,7 +159,13 @@ export const useStore = create(
         const preset = POLICY_PRESETS[presetId];
         if (!preset) return state;
         return {
-          policy: { ...preset },
+          policy: {
+            ...preset,
+            restrictedDomains: [...(state.policy.restrictedDomains || preset.restrictedDomains)],
+            blockedBundleIdentifiers: [
+              ...(state.policy.blockedBundleIdentifiers || preset.blockedBundleIdentifiers),
+            ],
+          },
           lastPolicyUpdatedAt: Date.now(),
           recentEvents: appendEvent(state.recentEvents, {
             type: 'policy',
@@ -223,6 +254,46 @@ export const useStore = create(
 
       setChildStatus: (status) => set({
         childStatus: { ...status, updatedAt: Date.now() },
+      }),
+
+      setDetectedApplications: (applications, scannedAt = Date.now()) => set((state) => {
+        const normalized = normalizeDetectedApplications(applications);
+        const blockedBundleIdentifiers = new Set(state.policy.blockedBundleIdentifiers || []);
+        for (const application of normalized) {
+          const override = state.applicationProtectionOverrides[application.bundleIdentifier];
+          if (override === true || (override === undefined && application.recommended)) {
+            blockedBundleIdentifiers.add(application.bundleIdentifier);
+          } else {
+            blockedBundleIdentifiers.delete(application.bundleIdentifier);
+          }
+        }
+        return {
+          detectedApplications: normalized,
+          detectedApplicationsScannedAt: Number(scannedAt) || Date.now(),
+          policy: {
+            ...state.policy,
+            blockedBundleIdentifiers: [...blockedBundleIdentifiers].sort(),
+          },
+        };
+      }),
+
+      setApplicationProtection: (bundleIdentifier, enabled) => set((state) => {
+        const blockedBundleIdentifiers = new Set(state.policy.blockedBundleIdentifiers || []);
+        if (enabled) blockedBundleIdentifiers.add(bundleIdentifier);
+        else blockedBundleIdentifiers.delete(bundleIdentifier);
+        return {
+          applicationProtectionOverrides: {
+            ...state.applicationProtectionOverrides,
+            [bundleIdentifier]: Boolean(enabled),
+          },
+          policy: {
+            ...state.policy,
+            id: 'custom',
+            name: 'Custom',
+            blockedBundleIdentifiers: [...blockedBundleIdentifiers].sort(),
+          },
+          lastPolicyUpdatedAt: Date.now(),
+        };
       }),
 
       setTestTimerSeconds: (seconds) => set({

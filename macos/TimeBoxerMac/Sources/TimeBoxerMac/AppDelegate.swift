@@ -11,8 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let webController = WebWindowController()
     private var statusItem: NSStatusItem?
     private var familySyncTimer: Timer?
+    private var applicationInventoryTimer: Timer?
     private var lastDeliveredFamilyRevision = 0
     private var lastFamilyHeartbeatAt = Date.distantPast
+    private var lastApplicationInventoryFingerprint = Data()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
@@ -22,6 +24,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startFamilyStateSync()
         monitor.start()
         webController.show(.child)
+        publishInstalledApplications()
+        applicationInventoryTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.publishInstalledApplications()
+            }
+        }
 
         if CommandLine.arguments.contains("--demo-shield") {
             Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
@@ -36,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.stop()
         familySyncTimer?.invalidate()
         familySyncTimer = nil
+        applicationInventoryTimer?.invalidate()
+        applicationInventoryTimer = nil
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -91,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             if type == "family-state-request" {
                 self.sendFamilyStateSnapshot()
+                self.publishInstalledApplications(force: true)
             } else if type == "family-state-update" {
                 self.applyFamilyStateUpdate(payload)
             } else if type == "policy-snapshot" {
@@ -134,6 +145,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         lastDeliveredFamilyRevision = envelope["revision"] as? Int ?? lastDeliveredFamilyRevision
         webController.sendNativeEvent(type: "family-state-snapshot", payload: envelope)
+    }
+
+    private func publishInstalledApplications(force: Bool = false) {
+        let applications = InstalledApplicationScanner.scan()
+        guard let fingerprint = try? JSONEncoder().encode(applications),
+              force || fingerprint != lastApplicationInventoryFingerprint
+        else { return }
+        lastApplicationInventoryFingerprint = fingerprint
+        NSLog("TimeBoxer detected %d installed applications", applications.count)
+        webController.sendNativeEvent(
+            type: "installed-apps-snapshot",
+            payload: [
+                "applications": applications.map(\.payload),
+                "scannedAt": Int64(Date().timeIntervalSince1970 * 1_000),
+            ]
+        )
     }
 
     private func applyFamilyStateUpdate(_ payload: [String: Any]) {
@@ -290,7 +317,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.usedMinutesToday = payload["usedMinutesToday"] as? Int ?? policy.usedMinutesToday
         policy.bonusMinutesToday = payload["bonusMinutesToday"] as? Int ?? policy.bonusMinutesToday
         policy.enforcementMode = .enforce
-        policy.blockedBundleIdentifiers.formUnion(FamilyPolicy.safeDefault.blockedBundleIdentifiers)
+        if let identifiers = payload["blockedBundleIdentifiers"] as? [String] {
+            policy.blockedBundleIdentifiers = Set(identifiers.compactMap { identifier in
+                let normalized = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+                return normalized.isEmpty ? nil : normalized
+            })
+        } else {
+            policy.blockedBundleIdentifiers.formUnion(FamilyPolicy.safeDefault.blockedBundleIdentifiers)
+        }
         if let domains = payload["restrictedDomains"] as? [String] {
             policy.restrictedDomains = Set(domains.compactMap { domain in
                 let normalized = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)

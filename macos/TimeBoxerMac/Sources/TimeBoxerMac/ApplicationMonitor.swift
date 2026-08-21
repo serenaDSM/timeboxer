@@ -81,7 +81,6 @@ final class ApplicationMonitor: NSObject {
     private var monitorTimer: Timer?
     private var lastReports: [String: (reason: BlockReason, mode: EnforcementMode, date: Date)] = [:]
     private var lastWebsiteReports: [String: (reason: BlockReason, mode: EnforcementMode, date: Date)] = [:]
-    private var entertainmentClassificationCache: [String: Bool] = [:]
     private var terminationRequestedAt: [pid_t: Date] = [:]
     private var browserURLRetryAfter = Date.distantPast
     private let reportCooldown: TimeInterval = 60
@@ -220,23 +219,8 @@ final class ApplicationMonitor: NSObject {
         _ application: NSRunningApplication,
         bundleIdentifier: String
     ) -> Bool {
-        if policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier) {
-            return true
-        }
-        if let cached = entertainmentClassificationCache[bundleIdentifier] {
-            return cached
-        }
-        guard
-            let bundleURL = application.bundleURL,
-            let bundle = Bundle(url: bundleURL),
-            let category = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String
-        else {
-            entertainmentClassificationCache[bundleIdentifier] = false
-            return false
-        }
-        let isGame = EntertainmentClassification.isGameCategory(category)
-        entertainmentClassificationCache[bundleIdentifier] = isGame
-        return isGame
+        _ = application
+        return policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier)
     }
 
     private func evaluateFrontmostBrowser() {
