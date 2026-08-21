@@ -42,4 +42,16 @@ final class WebsiteClassificationTests: XCTestCase {
             restrictedDomains: parentSelection
         ))
     }
+
+    func testUsesSafeReplacementPagesForSupportedBrowsers() {
+        XCTAssertEqual(
+            WebsiteClassification.safeReplacementURL(for: "com.google.Chrome"),
+            "chrome://newtab/"
+        )
+        XCTAssertEqual(
+            WebsiteClassification.safeReplacementURL(for: "com.apple.Safari"),
+            "about:blank"
+        )
+        XCTAssertNil(WebsiteClassification.safeReplacementURL(for: "com.example.browser"))
+    }
 }

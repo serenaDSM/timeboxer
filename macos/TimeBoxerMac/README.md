@@ -22,7 +22,7 @@ The local policy is created on first launch at:
 
 TimeBoxer registers itself to start at login. Turning that setting off or quitting the app requires the shared parent PIN. Force Quit and administrator-level removal are not yet prevented; production-grade tamper resistance requires a privileged helper or Apple system parental-control capabilities.
 
-The monitor identifies native applications through the family Bundle ID list and all macOS game categories, including specific categories such as board, strategy, and role-playing games. It also reads the front Safari or Chrome tab and hides the browser when a parent-selected video or web-game domain is opened outside approved Play time. The parent dashboard includes simple domain toggles. macOS asks the parent for browser Automation permission; strict enforcement hides the browser instead of silently allowing access when that permission is unavailable.
+The monitor identifies native applications through the family Bundle ID list and all macOS game categories, including specific categories such as board, strategy, and role-playing games. It also reads the front Safari or Chrome tab. When a parent-selected video or web-game domain is opened outside approved Play time, TimeBoxer first replaces the restricted tab with a safe new tab so background audio stops, then hides the browser and displays the shield. The parent dashboard includes simple domain toggles. macOS asks the parent for browser Automation permission; strict enforcement hides the browser instead of silently allowing access when that permission is unavailable.
 
 This Apple Events browser check is a practical local prototype, not the public-distribution endpoint. Broader browser coverage and tamper-resistant URL filtering still require a browser extension, Network Extension, or Apple Family Controls.
 
@@ -49,7 +49,7 @@ xcodebuild -license
 xcodebuild -version
 ```
 
-The locally verified app is installed at `/Applications/TimeBoxer.app`. Fourteen native rule/state/classification XCTest cases pass.
+The locally verified app is installed at `/Applications/TimeBoxer.app`. Fifteen native rule/state/classification XCTest cases pass.
 
 ## Safe shield demo
 

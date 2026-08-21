@@ -35,6 +35,14 @@ enum WebsiteClassification {
         "youtube.com": ["youtu.be", "youtube-nocookie.com"],
     ]
 
+    static func safeReplacementURL(for bundleIdentifier: String) -> String? {
+        switch bundleIdentifier {
+        case "com.apple.Safari": "about:blank"
+        case "com.google.Chrome": "chrome://newtab/"
+        default: nil
+        }
+    }
+
     static func host(from urlString: String) -> String? {
         guard let host = URLComponents(string: urlString)?.host?.lowercased() else { return nil }
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
@@ -268,6 +276,9 @@ final class ApplicationMonitor: NSObject {
 
         let mode = policyStore.policy.enforcementMode
         if mode == .enforce {
+            if host != nil {
+                replaceActiveBrowserTab(bundleIdentifier: bundleIdentifier)
+            }
             _ = application.hide()
         }
 
@@ -323,5 +334,38 @@ final class ApplicationMonitor: NSObject {
         }
         browserURLRetryAfter = .distantPast
         return url
+    }
+
+    private func replaceActiveBrowserTab(bundleIdentifier: String) {
+        guard let replacementURL = WebsiteClassification.safeReplacementURL(
+            for: bundleIdentifier
+        ) else { return }
+
+        let source: String
+        switch bundleIdentifier {
+        case "com.apple.Safari":
+            source = """
+            tell application "Safari"
+                if (count of windows) is 0 then return
+                set URL of current tab of front window to "\(replacementURL)"
+            end tell
+            """
+        case "com.google.Chrome":
+            source = """
+            tell application "Google Chrome"
+                if (count of windows) is 0 then return
+                set URL of active tab of front window to "\(replacementURL)"
+            end tell
+            """
+        default:
+            return
+        }
+
+        guard let script = NSAppleScript(source: source) else { return }
+        var error: NSDictionary?
+        _ = script.executeAndReturnError(&error)
+        if let error {
+            NSLog("TimeBoxer could not stop the restricted browser tab: %@", String(describing: error))
+        }
     }
 }
