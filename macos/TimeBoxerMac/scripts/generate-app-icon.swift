@@ -13,51 +13,62 @@ guard CommandLine.arguments.count == 2 else {
 
 let outputURL = URL(fileURLWithPath: CommandLine.arguments[1])
 let colourSpace = CGColorSpaceCreateDeviceRGB()
+let bytesPerPixel = 4
+let bytesPerRow = canvasSize * bytesPerPixel
+let pixels = UnsafeMutablePointer<UInt8>.allocate(capacity: canvasSize * bytesPerRow)
+pixels.initialize(repeating: 0, count: canvasSize * bytesPerRow)
+defer { pixels.deallocate() }
 
 guard let context = CGContext(
-    data: nil,
+    data: pixels,
     width: canvasSize,
     height: canvasSize,
     bitsPerComponent: 8,
-    bytesPerRow: 0,
+    bytesPerRow: bytesPerRow,
     space: colourSpace,
-    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
 ) else {
     fputs("Unable to create icon drawing context.\n", stderr)
     exit(1)
 }
 
-// Keep every pixel outside the rounded black tile transparent. Finder and the
-// Dock can then show their own background instead of a baked-in white square.
-context.clear(CGRect(x: 0, y: 0, width: canvasSize, height: canvasSize))
+// Create the rounded tile as an explicit signed-distance alpha mask. This
+// guarantees four identical corners and keeps every exterior pixel transparent,
+// without relying on SDK-dependent rounded-path clipping.
+let tileCentre = Double(canvasSize) / 2
+let tileHalfSize = 508.0
+let cornerRadius = 224.0
+let innerHalfSize = tileHalfSize - cornerRadius
+
+for row in 0..<canvasSize {
+    for column in 0..<canvasSize {
+        let x = Double(column) + 0.5
+        let y = Double(row) + 0.5
+        let qx = abs(x - tileCentre) - innerHalfSize
+        let qy = abs(y - tileCentre) - innerHalfSize
+        let outsideDistance = hypot(max(qx, 0), max(qy, 0))
+        let insideDistance = min(max(qx, qy), 0)
+        let signedDistance = outsideDistance + insideDistance - cornerRadius
+        let coverage = min(max(0.5 - signedDistance, 0), 1)
+        guard coverage > 0 else { continue }
+
+        let gradient = min(max((x + (Double(canvasSize) - y)) / (Double(canvasSize) * 2), 0), 1)
+        let red = 20.0 + (5.0 - 20.0) * gradient
+        let green = 24.0 + (6.0 - 24.0) * gradient
+        let blue = 30.0 + (9.0 - 30.0) * gradient
+        let offset = row * bytesPerRow + column * bytesPerPixel
+        pixels[offset] = UInt8((red * coverage).rounded())
+        pixels[offset + 1] = UInt8((green * coverage).rounded())
+        pixels[offset + 2] = UInt8((blue * coverage).rounded())
+        pixels[offset + 3] = UInt8((255 * coverage).rounded())
+    }
+}
+
+// The cube coordinates originate in the SVG's top-left coordinate system.
+// Flip only the cube drawing, after the rounded tile has been rendered in the
+// native Core Graphics coordinate system.
 context.translateBy(x: 0, y: CGFloat(canvasSize))
 context.scaleBy(x: 1, y: -1)
-
-let tile = CGPath(
-    roundedRect: CGRect(x: 4, y: 4, width: 1016, height: 1016),
-    cornerWidth: 224,
-    cornerHeight: 224,
-    transform: nil
-)
-
-let darkStart = CGColor(red: 20 / 255, green: 24 / 255, blue: 30 / 255, alpha: 1)
-let darkEnd = CGColor(red: 5 / 255, green: 6 / 255, blue: 9 / 255, alpha: 1)
-let backgroundGradient = CGGradient(
-    colorsSpace: colourSpace,
-    colors: [darkStart, darkEnd] as CFArray,
-    locations: [0, 1]
-)!
-
-context.saveGState()
-context.addPath(tile)
-context.clip()
-context.drawLinearGradient(
-    backgroundGradient,
-    start: CGPoint(x: 120, y: 80),
-    end: CGPoint(x: 900, y: 960),
-    options: []
-)
-context.restoreGState()
 
 let cube = CGMutablePath()
 cube.move(to: CGPoint(x: 512, y: 245))
