@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 .vite
 dist
+dist-child
+dist-parent
 dist-ssr
 macos/TimeBoxerMac/.build
 macos/TimeBoxerMac/build

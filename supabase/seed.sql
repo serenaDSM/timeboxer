@@ -1,0 +1,2 @@
+-- Intentionally empty. Production-like family fixtures belong in database tests,
+-- never in a seed that could be applied to a linked environment.

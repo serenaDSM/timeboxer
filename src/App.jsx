@@ -21,13 +21,11 @@ import ParentDashboard from './components/ParentDashboard.jsx';
 import BrandLogo from './components/BrandLogo.jsx';
 import { notifyNative } from './nativeBridge.js';
 import { useFamilySync } from './useFamilySync.js';
+import { clientCanOpenRole, getInitialRole } from './clientMode.js';
 
-const getInitialRole = () => {
-  const queryRole = new URLSearchParams(window.location.search).get('view');
-  const hashRole = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('view');
-  const requested = queryRole || hashRole;
-  return requested === 'parent' ? 'parent-locked' : 'child';
-};
+const CLIENT_MODE = import.meta.env.VITE_TIMEBOXER_CLIENT || 'combined';
+const IS_CHILD_CLIENT = CLIENT_MODE === 'child';
+const IS_PARENT_CLIENT = CLIENT_MODE === 'parent';
 
 function App() {
   const syncStatus = useFamilySync();
@@ -77,7 +75,11 @@ function App() {
   } = useStore();
 
   const [activeTimer, setActiveTimer] = useState(null);
-  const [role, setRole] = useState(getInitialRole);
+  const [role, setRole] = useState(() => getInitialRole({
+    clientMode: CLIENT_MODE,
+    search: window.location.search,
+    hash: window.location.hash,
+  }));
   const [now, setNow] = useState(0);
   const [pinValue, setPinValue] = useState('');
   const [pinError, setPinError] = useState('');
@@ -120,7 +122,9 @@ function App() {
         );
       }
       if (detail.type === 'view-mode') {
-        setRole(detail.payload?.view === 'parent' ? 'parent-locked' : 'child');
+        const requestedRole = detail.payload?.view === 'parent' ? 'parent' : 'child';
+        if (!clientCanOpenRole(CLIENT_MODE, requestedRole)) return;
+        setRole(requestedRole === 'parent' ? 'parent-locked' : 'child');
         setPinValue('');
         setPinError('');
       }
@@ -200,6 +204,7 @@ function App() {
   };
 
   const openParent = () => {
+    if (IS_CHILD_CLIENT) return;
     setPinValue('');
     setPinError('');
     setRole('parent-locked');
@@ -219,11 +224,13 @@ function App() {
   };
 
   const openChild = () => {
+    if (IS_PARENT_CLIENT) return;
     setRole('child');
     updateRoleInUrl('child');
   };
 
   const openChildTab = () => {
+    if (IS_PARENT_CLIENT) return;
     const url = new URL(window.location.href);
     url.searchParams.set('view', 'child');
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -405,7 +412,7 @@ function App() {
     return <Onboarding onComplete={completeOnboarding} />;
   }
 
-  if (role === 'parent-locked') {
+  if (!IS_CHILD_CLIENT && role === 'parent-locked') {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-[#f8faf8] p-5 text-slate-950">
         <form onSubmit={unlockParent} className="w-full max-w-sm rounded-[28px] border border-slate-200 bg-white p-7 text-center shadow-xl">
@@ -447,7 +454,7 @@ function App() {
     );
   }
 
-  if (role === 'parent') {
+  if (!IS_CHILD_CLIENT && role === 'parent') {
     return (
       <ParentDashboard
         profile={familyProfile}
@@ -511,6 +518,7 @@ function App() {
       earnTasks={earnTasks}
       spendTasks={spendTasks}
       pendingRequest={latestPendingRequest}
+      showParentEntry={!IS_CHILD_CLIENT}
       onEarn={startEarn}
       onSpend={startSpend}
       onRequestExtra={() => {

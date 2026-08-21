@@ -1,6 +1,9 @@
 # TimeBoxer Mac prototype
 
-This directory contains the first native macOS enforcement prototype. It keeps the React child/parent UI and adds an AppKit host, application monitoring, a full-screen shield, and a JavaScript-to-Swift message bridge.
+This directory contains the native macOS child enforcement client. Its release
+bundle contains only the React child UI plus an AppKit host, application monitoring,
+a full-screen shield, and a JavaScript-to-Swift message bridge. Parent controls now
+belong to the separate iPhone project.
 
 ## Enforcement boundary
 
@@ -33,11 +36,15 @@ swift test --package-path macos/TimeBoxerMac
 bash macos/TimeBoxerMac/scripts/build-app.sh
 ```
 
-The ad-hoc signed development app is assembled at:
+The ad-hoc signed development app is assembled and strictly verified at:
 
 ```text
-macos/TimeBoxerMac/build/TimeBoxer.app
+/private/tmp/timeboxer-mac-build/TimeBoxer.app
 ```
+
+The repository is stored in a File Provider-managed Documents directory, which
+can immediately add Finder metadata to an app bundle and invalidate its signature.
+The distributable output therefore stays outside the repository.
 
 The script uses ad-hoc signing for local testing. Public distribution will require a full Xcode installation, Developer ID signing, Hardened Runtime, notarization, and a signed installer.
 

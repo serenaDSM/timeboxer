@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://timeboxer.nz/contracts/device-event-v1.schema.json",
+  "title": "TimeBoxer Child Device Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "clientEventId", "eventType", "severity", "occurredAt"],
+  "properties": {
+    "version": { "const": 1 },
+    "clientEventId": { "type": "string", "format": "uuid" },
+    "eventType": {
+      "enum": [
+        "device_online", "device_offline", "app_blocked", "website_blocked",
+        "earn_started", "earn_completed", "earn_stopped", "play_started",
+        "play_ended", "request_created", "policy_applied"
+      ]
+    },
+    "severity": { "enum": ["info", "action", "violation"] },
+    "subjectLabel": { "type": "string", "maxLength": 160 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object", "maxProperties": 20 }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://timeboxer.nz/contracts/family-policy-v1.schema.json",
+  "title": "TimeBoxer Family Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "dayPlans",
+    "maxSessionMinutes",
+    "cooldownMinutes",
+    "cooldownTriggerMinutes",
+    "bedtimeBufferMinutes",
+    "earnTasks",
+    "protectedApplications",
+    "protectedDomains"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "dayPlans": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["school", "weekend", "holiday"],
+      "properties": {
+        "school": { "$ref": "#/$defs/dayPlan" },
+        "weekend": { "$ref": "#/$defs/dayPlan" },
+        "holiday": { "$ref": "#/$defs/dayPlan" }
+      }
+    },
+    "maxSessionMinutes": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "cooldownMinutes": { "type": "integer", "minimum": 0, "maximum": 60 },
+    "cooldownTriggerMinutes": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "bedtimeBufferMinutes": { "type": "integer", "minimum": 0, "maximum": 180 },
+    "earnTasks": {
+      "type": "array",
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/earnTask" }
+    },
+    "protectedApplications": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "type": "string", "minLength": 1, "maxLength": 255 }
+    },
+    "protectedDomains": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+        "maxLength": 253
+      }
+    }
+  },
+  "$defs": {
+    "dayPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseMinutes", "earnCapMinutes"],
+      "properties": {
+        "baseMinutes": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "earnCapMinutes": { "type": "integer", "minimum": 0, "maximum": 120 }
+      }
+    },
+    "earnTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "durationMinutes", "rewardMinutes"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "durationMinutes": { "type": "integer", "minimum": 1, "maximum": 180 },
+        "rewardMinutes": { "type": "integer", "minimum": 0, "maximum": 60 }
+      }
+    }
+  }
+}

@@ -5,7 +5,6 @@
 final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKNavigationDelegate {
     enum ViewMode: String {
         case child
-        case parent
     }
 
     var onBridgeMessage: ((String, [String: Any]) -> Void)?

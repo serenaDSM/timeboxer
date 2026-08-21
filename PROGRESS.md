@@ -336,9 +336,21 @@
 - [x] 明确当前边界：浏览器内的网页游戏/视频尚不能按网址识别，需要浏览器扩展、Network Extension 或 Apple Family Controls。
 - [x] Web 14 项测试、macOS 8 项原生规则/状态测试、lint 和 Release 构建通过。
 
+### [2026-08-22] v4.5 独立客户端与云端基础
+- [x] 增加 `child`、`parent`、`combined` 三种构建模式；Mac 发布包固定使用 Child 构建，手动 URL 参数也不能进入家长端。
+- [x] 删除 Mac 原生状态栏的 `Open Parent Preview` 和原生 `.parent` 视图模式，家长控制不再随孩子安装包发布。
+- [x] 创建独立 `TimeBoxer Parent` SwiftUI iPhone 工程，完成移动首屏、Mac 在线状态、违规卡片、加时审批、今日额度、折叠设置和六位配对码界面。
+- [x] iPhone 工程以 `nz.co.timeboxer.parent` 为 Bundle ID，通过 iOS 17 模拟器 SDK 无签名编译。
+- [x] 使用固定版本 Supabase CLI 初始化独立本地云端工程；没有连接或修改账户中已有的非 TimeBoxer 项目。
+- [x] 建立 family、member、child、device、policy、event、request、entitlement 数据结构；所有公开表启用 RLS 并显式授权。
+- [x] 配对码摘要、设备凭证和 APNs token 放入不可从 Data API 访问的 `private` schema，孩子 Mac 不使用家长 JWT 或 service-role key。
+- [x] 增加家庭策略与设备事件 JSON Schema，明确不收集截图、键盘输入和网页正文。
+- [x] 按 Supabase PostgreSQL 最佳实践补齐所有高频查询、RLS 和外键列索引，并收紧 service-role 表权限。
+- [ ] 下一步：创建专用 TimeBoxer Supabase 项目，在开发分支执行迁移和 advisors；随后实现配对、设备同步、APNs 三个 Edge Functions。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)
-- [ ] 接入 Firebase 等云端数据库实现跨设备多端同步。
+- [ ] 接入专用 Supabase 云端项目实现跨设备多端同步。
 - [ ] 开发可视化的孩子“周常努力数据折线图”。
 - [ ] 丰富 Spend Time 消费区的虚拟商城体系（兑换零食、特权等）。

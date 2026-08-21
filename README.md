@@ -24,6 +24,14 @@ TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子�
 - 个性化保护：家长端显示孩子 Mac 实际检测到的应用，同时提供内置网站建议和自定义网站入口。
 - 家长提醒中心：孩子申请、受限 App/网站拦截、任务完成和娱乐使用按严重程度进入独立通知中心；违规事件显示首屏红色警告和未读角标，可在测试工具中发送模拟拦截提醒。家长主动授权后，支持浏览器运行期间的系统通知；App 完全关闭后的远程推送仍需后续 iPhone App 与云端服务。
 
+## 独立客户端拆分（进行中）
+
+- `macos/TimeBoxerMac` 是独立的孩子 Mac 客户端。发布构建只打包 Child UI，原生状态栏和 URL 均不能再打开家长界面。
+- `ios/TimeBoxerParent` 是独立的 SwiftUI 家长 iPhone 客户端，已包含手机首屏、Mac 在线状态、违规提醒、加时审批、折叠设置与六位配对码流程。
+- `contracts` 保存家长端、孩子端和云端共同遵守的策略与设备事件 JSON Schema。
+- `supabase` 保存未连接线上项目的本地云端工程，包含多家庭数据结构、RLS、设备凭证和推送令牌的私有存储边界。
+- 当前线上账户中没有专用 TimeBoxer Supabase 项目，因此迁移尚未应用到任何在线数据库，不会影响其他项目。
+
 ## 保留的核心能力
 
 - Earn：目标倒计时、完成后 Overtime 奖励、提前退出零收益。
@@ -50,7 +58,15 @@ npm run dev
 npm run lint
 npm test
 npm run build
+npm run build:child
+npm run build:parent-preview
+npm run ios:build
 ```
+
+`npm run mac:build` writes its strictly verified child-only bundle to
+`/private/tmp/timeboxer-mac-build/TimeBoxer.app`. The output stays outside the
+File Provider-managed project directory so Finder metadata cannot invalidate its
+signature after the build finishes.
 
 生产构建输出到 `dist/`。
 
@@ -135,6 +151,9 @@ src/useFamilySync.js        浏览器 API 轮询与 WebKit 原生桥双向同步
 scripts/local-family-state-api.mjs 本机状态 API
 src/rules.js                可测试的业务规则
 test/rules.test.js          业务规则测试
+contracts/                  跨端策略与设备事件契约
+ios/TimeBoxerParent/        独立 SwiftUI 家长 iPhone 客户端
+supabase/                   多家庭云端数据库与安全迁移
 PROGRESS.md                 历史进展与路线图
 ```
 

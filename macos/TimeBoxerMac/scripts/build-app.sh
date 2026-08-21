@@ -4,7 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MAC_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$MAC_ROOT/../.." && pwd)"
-OUTPUT_APP_ROOT="$MAC_ROOT/build/TimeBoxer.app"
+# The project lives under a File Provider-managed Documents directory. macOS can
+# reattach Finder metadata there immediately after signing, invalidating the
+# bundle. Keep the verified deliverable on a local temporary filesystem.
+OUTPUT_APP_ROOT="/private/tmp/timeboxer-mac-build/TimeBoxer.app"
 STAGING_DIRECTORY="$(mktemp -d /private/tmp/timeboxer-app-build.XXXXXX)"
 trap 'rm -rf "$STAGING_DIRECTORY"' EXIT
 APP_ROOT="$STAGING_DIRECTORY/TimeBoxer.app"
@@ -33,7 +36,7 @@ fi
 export DEVELOPER_DIR="$XCODE_DEVELOPER_DIR"
 export SDKROOT="$MACOS_SDK"
 
-npm run build
+npm run build:child
 
 SWIFT_BUILD_ARGS=(build -c release --package-path "$MAC_ROOT")
 if [[ "${TIMEBOXER_DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]]; then
@@ -44,7 +47,7 @@ fi
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources/WebApp"
 cp "$MAC_ROOT/.build/release/TimeBoxerMac" "$CONTENTS/MacOS/TimeBoxerMac"
 cp "$MAC_ROOT/App/Info.plist" "$CONTENTS/Info.plist"
-cp -R "$PROJECT_ROOT/dist/." "$CONTENTS/Resources/WebApp/"
+cp -R "$PROJECT_ROOT/dist-child/." "$CONTENTS/Resources/WebApp/"
 node "$SCRIPT_DIR/inline-web-assets.mjs" "$CONTENTS/Resources/WebApp"
 "$ASSET_CATALOG_COMPILER" \
   --compile "$CONTENTS/Resources" \
@@ -65,5 +68,13 @@ codesign --verify --deep --strict --verbose=2 "$APP_ROOT"
 rm -rf "$OUTPUT_APP_ROOT"
 mkdir -p "$(dirname "$OUTPUT_APP_ROOT")"
 ditto --norsrc --noextattr "$APP_ROOT" "$OUTPUT_APP_ROOT"
+
+# File Provider may attach Finder metadata again while copying into the project
+# directory. Clean and sign the actual deliverable, not only the staging bundle.
+xattr -cr "$OUTPUT_APP_ROOT"
+xattr -d com.apple.FinderInfo "$OUTPUT_APP_ROOT" 2>/dev/null || true
+xattr -d 'com.apple.fileprovider.fpfs#P' "$OUTPUT_APP_ROOT" 2>/dev/null || true
+codesign --force --deep --sign - "$OUTPUT_APP_ROOT"
+codesign --verify --deep --strict --verbose=2 "$OUTPUT_APP_ROOT"
 
 echo "$OUTPUT_APP_ROOT"

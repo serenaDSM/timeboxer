@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:child": "VITE_TIMEBOXER_CLIENT=child vite build --outDir dist-child",
+    "build:parent-preview": "VITE_TIMEBOXER_CLIENT=parent vite build --outDir dist-parent",
     "lint": "eslint .",
     "test": "node --test test/*.test.js",
     "preview": "vite preview",
     "mac:test": "swift test --package-path macos/TimeBoxerMac",
-    "mac:build": "bash macos/TimeBoxerMac/scripts/build-app.sh"
+    "mac:build": "bash macos/TimeBoxerMac/scripts/build-app.sh",
+    "ios:build": "xcodebuild -project ios/TimeBoxerParent/TimeBoxerParent.xcodeproj -scheme TimeBoxerParent -sdk iphonesimulator -configuration Debug -derivedDataPath /private/tmp/timeboxer-parent-derived CODE_SIGNING_ALLOWED=NO build"
   },
   "dependencies": {
     "lucide-react": "^0.511.0",

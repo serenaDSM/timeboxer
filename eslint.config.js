@@ -8,6 +8,8 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores([
     'dist',
+    'dist-child',
+    'dist-parent',
     'node_modules',
     '.vite',
     'macos/TimeBoxerMac/.build',

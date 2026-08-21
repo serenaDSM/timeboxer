@@ -196,7 +196,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(makeStatusMenuItem("Open Child View", action: #selector(openChildView)))
-        menu.addItem(makeStatusMenuItem("Open Parent Preview", action: #selector(openParentView)))
         menu.addItem(.separator())
         menu.addItem(makeStatusMenuItem("Show Demo Shield", action: #selector(showDemoShield)))
         menu.addItem(makeStatusMenuItem("Reload Local Policy", action: #selector(reloadPolicy)))
@@ -213,10 +212,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openChildView() {
         webController.show(.child)
-    }
-
-    @objc private func openParentView() {
-        webController.show(.parent)
     }
 
     @objc private func showDemoShield() {

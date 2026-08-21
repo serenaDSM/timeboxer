@@ -33,6 +33,7 @@ export default function ChildDashboard({
   earnTasks,
   spendTasks,
   pendingRequest,
+  showParentEntry = true,
   onEarn,
   onSpend,
   onRequestExtra,
@@ -51,9 +52,11 @@ export default function ChildDashboard({
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-5 py-4">
           <div className="hidden text-sm font-semibold text-slate-500 sm:block">{profile.childName}’s space</div>
           <BrandLogo />
-          <button onClick={onOpenParent} className="justify-self-end flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700">
-            <Settings size={17} /> Parent
-          </button>
+          {showParentEntry ? (
+            <button onClick={onOpenParent} className="justify-self-end flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700">
+              <Settings size={17} /> Parent
+            </button>
+          ) : <div aria-hidden="true" />}
         </div>
       </header>
 
