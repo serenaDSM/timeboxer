@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Moon, Sparkles } from 'lucide-react';
-import { POLICY_PRESETS } from '../policy.js';
+import { getMaximumDailyLimit, POLICY_PRESETS } from '../policy.js';
 import BrandLogo from './BrandLogo.jsx';
 
 export default function Onboarding({ onComplete }) {
@@ -65,9 +65,9 @@ export default function Onboarding({ onComplete }) {
                     </div>
                     <div className="mt-1 text-sm text-slate-500">{item.description}</div>
                     <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
-                      <div className="rounded-xl bg-white p-2"><strong>{item.schoolLimit}m</strong><span className="block text-xs text-slate-400">School</span></div>
-                      <div className="rounded-xl bg-white p-2"><strong>{item.weekendLimit}m</strong><span className="block text-xs text-slate-400">Weekend</span></div>
-                      <div className="rounded-xl bg-white p-2"><strong>{item.holidayLimit}m</strong><span className="block text-xs text-slate-400">Holiday</span></div>
+                      <div className="rounded-xl bg-white p-2"><strong>{getMaximumDailyLimit(item, 'school')}m</strong><span className="block text-xs text-slate-400">School max</span></div>
+                      <div className="rounded-xl bg-white p-2"><strong>{getMaximumDailyLimit(item, 'weekend')}m</strong><span className="block text-xs text-slate-400">Weekend max</span></div>
+                      <div className="rounded-xl bg-white p-2"><strong>{getMaximumDailyLimit(item, 'holiday')}m</strong><span className="block text-xs text-slate-400">Holiday max</span></div>
                     </div>
                   </button>
                 ))}
@@ -86,9 +86,9 @@ export default function Onboarding({ onComplete }) {
                 <div className="text-sm text-slate-400">{childName || 'Alex'}’s plan</div>
                 <div className="mt-1 text-xl font-black">{preset.name}</div>
                 <div className="mt-5 space-y-3 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-400">School days</span><strong>{preset.schoolLimit} minutes</strong></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Weekends</span><strong>{preset.weekendLimit} minutes</strong></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Holidays</span><strong>{preset.holidayLimit} minutes</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">School days</span><strong>{preset.schoolLimit} base · {getMaximumDailyLimit(preset, 'school')} max</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Weekends</span><strong>{preset.weekendLimit} base · {getMaximumDailyLimit(preset, 'weekend')} max</strong></div>
+                  <div className="flex justify-between"><span className="text-slate-400">Holidays</span><strong>{preset.holidayLimit} base · {getMaximumDailyLimit(preset, 'holiday')} max</strong></div>
                   <div className="flex justify-between"><span className="text-slate-400">Entertainment ends</span><strong>1 hour before bed</strong></div>
                 </div>
               </div>

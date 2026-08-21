@@ -16,7 +16,7 @@ struct DailyLimits: Codable, Equatable, Sendable {
     var weekend: Int
     var holiday: Int
 
-    static let balanced = DailyLimits(school: 30, weekend: 60, holiday: 90)
+    static let balanced = DailyLimits(school: 20, weekend: 30, holiday: 40)
 }
 
 struct FamilyPolicy: Codable, Equatable, Sendable {

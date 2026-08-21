@@ -9,8 +9,8 @@ export function validateTaskInput({ title, duration, value, type }) {
   if (!normalizedTitle) {
     return { ok: false, message: 'Task name is required.' };
   }
-  if (!Number.isInteger(parsedDuration) || !Number.isInteger(parsedValue)) {
-    return { ok: false, message: 'Duration and reward/cost must be whole minutes.' };
+  if (!Number.isInteger(parsedDuration)) {
+    return { ok: false, message: 'Duration must be a whole number of minutes.' };
   }
   if (parsedDuration < MIN_TASK_DURATION) {
     return { ok: false, message: `Duration must be at least ${MIN_TASK_DURATION} minutes.` };
@@ -18,8 +18,11 @@ export function validateTaskInput({ title, duration, value, type }) {
   if (parsedDuration > MAX_TASK_DURATION) {
     return { ok: false, message: `Duration cannot exceed ${MAX_TASK_DURATION} minutes.` };
   }
-  if (parsedValue < 1) {
-    return { ok: false, message: 'Reward/cost must be at least 1 minute.' };
+  if (type === 'earn' && !Number.isInteger(parsedValue)) {
+    return { ok: false, message: 'Bonus must be a whole number of minutes.' };
+  }
+  if (type === 'earn' && parsedValue < 1) {
+    return { ok: false, message: 'Bonus must be at least 1 minute.' };
   }
   if (type === 'earn' && parsedValue > parsedDuration) {
     return { ok: false, message: 'Earn reward cannot exceed task duration.' };
@@ -29,7 +32,7 @@ export function validateTaskInput({ title, duration, value, type }) {
     ok: true,
     title: normalizedTitle,
     duration: parsedDuration,
-    value: parsedValue,
+    value: type === 'earn' ? parsedValue : parsedDuration,
   };
 }
 
@@ -45,14 +48,4 @@ export function getPlayedMinutesForCountdown(durationMinutes, countdownSeconds, 
   const safeRemaining = Math.min(totalSeconds, Math.max(0, Number(remainingSeconds)));
   const elapsedRatio = (totalSeconds - safeRemaining) / totalSeconds;
   return Math.min(Math.ceil(duration), Math.ceil(duration * elapsedRatio));
-}
-
-export function getProratedSpendCost(playedMinutes, durationMinutes, totalCost) {
-  const played = Math.max(0, Number(playedMinutes));
-  const duration = Number(durationMinutes);
-  const cost = Math.max(0, Number(totalCost));
-  if (!Number.isFinite(played) || !Number.isFinite(duration) || !Number.isFinite(cost) || duration <= 0) {
-    return 0;
-  }
-  return Math.min(cost, Math.ceil((played * cost) / duration));
 }

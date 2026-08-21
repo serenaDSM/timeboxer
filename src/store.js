@@ -1,18 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getLocalDateKey } from './date.js';
-import { DEFAULT_POLICY, POLICY_PRESETS, PUBLIC_HEALTH_CEILING_MINUTES } from './policy.js';
-
-const defaultEarnTasks = [
-  { id: 'earn-1', title: 'Chinese Reading', duration: 30, reward: 30, icon: 'BookOpen' },
-  { id: 'earn-2', title: 'English Reading', duration: 30, reward: 30, icon: 'BookOpen' },
-  { id: 'earn-3', title: 'Outdoor Play', duration: 30, reward: 30, icon: 'Dumbbell' },
-];
-
-const defaultSpendTasks = [
-  { id: 'spend-1', title: 'Video Games', duration: 30, cost: 30, icon: 'Gamepad2' },
-  { id: 'spend-2', title: 'Watch Videos', duration: 30, cost: 30, icon: 'Tv' },
-];
+import {
+  DEFAULT_POLICY,
+  getDayType,
+  getEarnBonusCap,
+  POLICY_PRESETS,
+  PUBLIC_HEALTH_CEILING_MINUTES,
+} from './policy.js';
+import {
+  DEFAULT_EARN_TASKS,
+  DEFAULT_SPEND_TASKS,
+  migrateEarnTasks,
+  migrateSpendTasks,
+} from './defaults.js';
 
 const defaultProfile = {
   childName: 'Alex',
@@ -33,10 +34,44 @@ const clampMinutes = (value, maximum = PUBLIC_HEALTH_CEILING_MINUTES) => (
   Math.min(maximum, Math.max(0, Math.round(Number(value) || 0)))
 );
 
+const migratePolicy = (policy = {}) => {
+  if (POLICY_PRESETS[policy.id]) return { ...POLICY_PRESETS[policy.id] };
+  return {
+    ...DEFAULT_POLICY,
+    ...policy,
+    id: 'custom',
+    name: 'Custom',
+  };
+};
+
+const migratePersistedState = (persistedState = {}) => {
+  const policy = migratePolicy(persistedState.policy);
+  const today = getLocalDateKey();
+  const dayType = getDayType({ date: new Date(), dayOverrides: persistedState.dayOverrides || {} });
+  const earnCap = getEarnBonusCap(policy, dayType);
+
+  return {
+    ...persistedState,
+    availableMinutes: Math.min(earnCap, clampMinutes(persistedState.availableMinutes)),
+    availableMinutesDate: today,
+    familyProfile: { ...defaultProfile, ...(persistedState.familyProfile || {}) },
+    policy,
+    dayOverrides: persistedState.dayOverrides || {},
+    dailyBonuses: persistedState.dailyBonuses || {},
+    pendingRequests: persistedState.pendingRequests || [],
+    recentEvents: persistedState.recentEvents || [],
+    childStatus: persistedState.childStatus || { kind: 'idle', updatedAt: Date.now() },
+    earnTasks: migrateEarnTasks(persistedState.earnTasks),
+    spendTasks: migrateSpendTasks(persistedState.spendTasks),
+    testTimerSeconds: Math.min(300, Math.max(0, Math.round(Number(persistedState.testTimerSeconds) || 0))),
+  };
+};
+
 export const useStore = create(
   persist(
     (set) => ({
       availableMinutes: 0,
+      availableMinutesDate: getLocalDateKey(),
       totalEarned: 0,
       totalSpent: 0,
       todaySpent: 0,
@@ -45,8 +80,8 @@ export const useStore = create(
       testTimerSeconds: 0,
       parentPIN: '1234',
       hasSeenOnboarding: false,
-      earnTasks: defaultEarnTasks,
-      spendTasks: defaultSpendTasks,
+      earnTasks: DEFAULT_EARN_TASKS,
+      spendTasks: DEFAULT_SPEND_TASKS,
 
       familyProfile: defaultProfile,
       policy: { ...DEFAULT_POLICY },
@@ -57,14 +92,28 @@ export const useStore = create(
       childStatus: { kind: 'idle', updatedAt: Date.now() },
       lastPolicyUpdatedAt: Date.now(),
 
-      addMinutes: (minutes) => set((state) => ({
-        availableMinutes: state.availableMinutes + minutes,
-        totalEarned: state.totalEarned + minutes,
-        recentEvents: appendEvent(state.recentEvents, {
-          type: 'earned',
-          message: `${state.familyProfile.childName} earned ${minutes} minutes.`,
-        }),
-      })),
+      addMinutes: (minutes) => set((state) => {
+        const today = getLocalDateKey();
+        const currentEarned = state.availableMinutesDate === today ? state.availableMinutes : 0;
+        const dayType = getDayType({ date: new Date(), dayOverrides: state.dayOverrides });
+        const earnCap = getEarnBonusCap(state.policy, dayType);
+        const credited = Math.min(
+          Math.max(0, earnCap - currentEarned),
+          clampMinutes(minutes),
+        );
+
+        return {
+          availableMinutes: currentEarned + credited,
+          availableMinutesDate: today,
+          totalEarned: state.totalEarned + credited,
+          recentEvents: appendEvent(state.recentEvents, {
+            type: credited > 0 ? 'earned' : 'earn-cap',
+            message: credited > 0
+              ? `${state.familyProfile.childName} earned ${credited} bonus minutes.`
+              : `${state.familyProfile.childName} completed the activity; today’s earnable bonus is full.`,
+          }),
+        };
+      }),
 
       updateFamilyProfile: (updates) => set((state) => ({
         familyProfile: { ...state.familyProfile, ...updates },
@@ -91,6 +140,9 @@ export const useStore = create(
           ...(updates.schoolLimit !== undefined && { schoolLimit: clampMinutes(updates.schoolLimit) }),
           ...(updates.weekendLimit !== undefined && { weekendLimit: clampMinutes(updates.weekendLimit) }),
           ...(updates.holidayLimit !== undefined && { holidayLimit: clampMinutes(updates.holidayLimit) }),
+          ...(updates.schoolEarnCapMinutes !== undefined && { schoolEarnCapMinutes: clampMinutes(updates.schoolEarnCapMinutes) }),
+          ...(updates.weekendEarnCapMinutes !== undefined && { weekendEarnCapMinutes: clampMinutes(updates.weekendEarnCapMinutes) }),
+          ...(updates.holidayEarnCapMinutes !== undefined && { holidayEarnCapMinutes: clampMinutes(updates.holidayEarnCapMinutes) }),
           ...(updates.maxSessionMinutes !== undefined && { maxSessionMinutes: clampMinutes(updates.maxSessionMinutes, 60) }),
         },
         lastPolicyUpdatedAt: Date.now(),
@@ -133,10 +185,8 @@ export const useStore = create(
             ? { ...item, status: approved ? 'approved' : 'declined', resolvedAt: Date.now() }
             : item
         ));
-        const approvedMinutes = approved ? request.minutes : 0;
         return {
           pendingRequests: updatedRequests,
-          availableMinutes: state.availableMinutes + approvedMinutes,
           dailyBonuses: approved
             ? {
                 ...state.dailyBonuses,
@@ -167,12 +217,18 @@ export const useStore = create(
         testTimerSeconds: Math.min(300, Math.max(0, Math.round(Number(seconds) || 0))),
       }),
       setAvailableMinutes: (minutes) => set((state) => {
-        const nextMinutes = Math.min(600, Math.max(0, Math.round(Number(minutes) || 0)));
+        const today = getLocalDateKey();
+        const dayType = getDayType({ date: new Date(), dayOverrides: state.dayOverrides });
+        const nextMinutes = Math.min(
+          getEarnBonusCap(state.policy, dayType),
+          clampMinutes(minutes),
+        );
         return {
           availableMinutes: nextMinutes,
+          availableMinutesDate: today,
           recentEvents: appendEvent(state.recentEvents, {
             type: 'test-adjustment',
-            message: `Parent set the test balance to ${nextMinutes} minutes.`,
+            message: `Parent set today’s earned bonus to ${nextMinutes} minutes.`,
           }),
         };
       }),
@@ -187,6 +243,7 @@ export const useStore = create(
 
       resetAllData: () => set({
         availableMinutes: 0,
+        availableMinutesDate: getLocalDateKey(),
         totalEarned: 0,
         totalSpent: 0,
         todaySpent: 0,
@@ -198,13 +255,12 @@ export const useStore = create(
         childStatus: { kind: 'idle', updatedAt: Date.now() },
       }),
 
-      recordSpend: (minutesPlayed, minutesCost, triggerCooldown = true) => set((state) => {
+      recordSpend: (minutesPlayed, triggerCooldown = true) => set((state) => {
         const todayStr = getLocalDateKey();
         const isNewDay = state.lastSpentDate !== todayStr;
         const newTodaySpent = (isNewDay ? 0 : state.todaySpent) + minutesPlayed;
         return {
-          availableMinutes: Math.max(0, state.availableMinutes - minutesCost),
-          totalSpent: state.totalSpent + minutesCost,
+          totalSpent: state.totalSpent + minutesPlayed,
           todaySpent: newTodaySpent,
           lastSpentDate: todayStr,
           cooldownUntil: triggerCooldown
@@ -234,25 +290,15 @@ export const useStore = create(
     }),
     {
       name: 'kids-time-storage',
-      version: 4,
-      migrate: (persistedState) => ({
-        ...persistedState,
-        familyProfile: { ...defaultProfile, ...(persistedState.familyProfile || {}) },
-        policy: { ...DEFAULT_POLICY, ...(persistedState.policy || {}) },
-        dayOverrides: persistedState.dayOverrides || {},
-        dailyBonuses: persistedState.dailyBonuses || {},
-        pendingRequests: persistedState.pendingRequests || [],
-        recentEvents: persistedState.recentEvents || [],
-        childStatus: persistedState.childStatus || { kind: 'idle', updatedAt: Date.now() },
-        testTimerSeconds: Math.min(300, Math.max(0, Math.round(Number(persistedState.testTimerSeconds) || 0))),
-      }),
+      version: 6,
+      migrate: migratePersistedState,
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...persistedState,
         familyProfile: { ...currentState.familyProfile, ...(persistedState.familyProfile || {}) },
         policy: { ...currentState.policy, ...(persistedState.policy || {}) },
-        earnTasks: persistedState.earnTasks || currentState.earnTasks,
-        spendTasks: persistedState.spendTasks || currentState.spendTasks,
+        earnTasks: migrateEarnTasks(persistedState.earnTasks || currentState.earnTasks),
+        spendTasks: migrateSpendTasks(persistedState.spendTasks || currentState.spendTasks),
       }),
     },
   ),

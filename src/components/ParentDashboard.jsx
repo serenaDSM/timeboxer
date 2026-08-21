@@ -16,7 +16,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { DAY_TYPES, POLICY_PRESETS } from '../policy.js';
+import { DAY_TYPES, getMaximumDailyLimit, POLICY_PRESETS } from '../policy.js';
 import BrandLogo from './BrandLogo.jsx';
 
 const formatEventTime = (timestamp) => new Intl.DateTimeFormat('en-NZ', {
@@ -30,9 +30,12 @@ export default function ParentDashboard({
   dayType,
   todayKey,
   dailyLimit,
+  baseDailyLimit,
   todaySpent,
   todayAvailable,
-  balance,
+  earnedMinutesToday,
+  earnBonusCap,
+  parentBonusToday,
   testTimerSeconds,
   childStatus,
   pendingRequests,
@@ -102,7 +105,7 @@ export default function ParentDashboard({
             <div className="mt-7 grid grid-cols-3 gap-3">
               <div className="rounded-2xl bg-emerald-50 p-3"><div className="text-2xl font-black text-emerald-600">{todayAvailable}</div><div className="text-xs text-slate-400">Available</div></div>
               <div className="rounded-2xl bg-slate-50 p-3"><div className="text-2xl font-black">{todaySpent}</div><div className="text-xs text-slate-400">Used today</div></div>
-              <div className="rounded-2xl bg-slate-50 p-3"><div className="text-2xl font-black">{balance}</div><div className="text-xs text-slate-400">Time coins</div></div>
+              <div className="rounded-2xl bg-slate-50 p-3"><div className="text-2xl font-black">{earnedMinutesToday}<span className="text-sm text-slate-400"> / {earnBonusCap}</span></div><div className="text-xs text-slate-400">Earned bonus</div></div>
             </div>
           </div>
 
@@ -114,7 +117,7 @@ export default function ParentDashboard({
             {pendingRequest ? (
               <div className="mt-5">
                 <div className="text-xl font-black">{profile.childName} asked for {pendingRequest.minutes} more minutes</div>
-                <div className="mt-2 text-sm text-slate-500">Approval adds time coins and a one-day exception.</div>
+                <div className="mt-2 text-sm text-slate-500">Approval adds a parent bonus for today only.</div>
                 <div className="mt-5 flex gap-2">
                   <button onClick={() => onResolveRequest(pendingRequest.id, false)} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 font-black text-slate-600"><X size={17} /> Decline</button>
                   <button onClick={() => onResolveRequest(pendingRequest.id, true)} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#35d532] py-3 font-black text-slate-950"><Check size={17} /> Approve</button>
@@ -147,6 +150,7 @@ export default function ParentDashboard({
               <div>
                 <div className="text-sm text-slate-400">Entertainment allowance</div>
                 <div className="mt-1 text-3xl font-black">{dailyLimit} minutes</div>
+                <div className="mt-2 text-xs text-slate-400">{baseDailyLimit} base + {earnedMinutesToday} earned{parentBonusToday > 0 ? ` + ${parentBonusToday} parent` : ''}</div>
               </div>
               <Clock3 size={28} className="text-emerald-600" />
             </div>
@@ -167,7 +171,7 @@ export default function ParentDashboard({
             <div>
               <div className="flex items-center gap-2 text-sm font-bold text-emerald-700"><Gauge size={18} /> Parent-only testing tools</div>
               <h2 className="mt-1 text-xl font-black">Adjust time without waiting</h2>
-              <p className="mt-1 text-sm text-slate-500">Quick countdown changes only the test speed. Real rewards, costs and limits still apply.</p>
+              <p className="mt-1 text-sm text-slate-500">Quick countdown changes only the test speed. Real rewards and limits still apply.</p>
             </div>
             <div className={`rounded-full px-3 py-1.5 text-xs font-black ${testTimerSeconds > 0 ? 'bg-emerald-600 text-white' : 'bg-white text-slate-500'}`}>
               {testTimerSeconds > 0 ? `Quick test: ${testTimerSeconds}s` : 'Real time'}
@@ -176,19 +180,20 @@ export default function ParentDashboard({
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <label className="rounded-2xl border border-emerald-100 bg-white p-4">
-              <span className="text-xs font-bold text-slate-500">Available time coins</span>
+              <span className="text-xs font-bold text-slate-500">Earned bonus today</span>
               <div className="mt-2 flex items-center gap-2">
                 <input
-                  aria-label="Test time coins"
+                  aria-label="Earned bonus today"
                   type="number"
                   min="0"
-                  max="600"
-                  value={balance}
+                  max={earnBonusCap}
+                  value={earnedMinutesToday}
                   onChange={(event) => onSetAvailableMinutes(event.target.value)}
                   className="min-w-0 flex-1 bg-transparent text-3xl font-black outline-none"
                 />
                 <span className="text-sm font-bold text-slate-400">min</span>
               </div>
+              <div className="mt-2 text-xs text-slate-400">Today’s earnable bonus cap is {earnBonusCap} min.</div>
             </label>
 
             <div className="rounded-2xl border border-emerald-100 bg-white p-4">
@@ -236,21 +241,21 @@ export default function ParentDashboard({
             <div className="text-sm text-slate-400">Current: <strong className="text-slate-700">{policy.name}</strong></div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
             {Object.values(POLICY_PRESETS).map((preset) => (
               <button key={preset.id} onClick={() => onApplyPreset(preset.id)} className={`rounded-2xl border p-4 text-left transition ${policy.id === preset.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-emerald-300'}`}>
                 <div className="flex items-center justify-between"><strong>{preset.name}</strong>{policy.id === preset.id && <Check size={18} className="text-emerald-600" />}</div>
-                <div className="mt-1 text-sm text-slate-400">{preset.schoolLimit}m school · {preset.weekendLimit}m weekend · {preset.holidayLimit}m holiday</div>
+                <div className="mt-1 text-sm text-slate-400">Up to {getMaximumDailyLimit(preset, 'school')}m school · {getMaximumDailyLimit(preset, 'weekend')}m weekend · {getMaximumDailyLimit(preset, 'holiday')}m holiday</div>
               </button>
             ))}
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-4">
+          <div className="mt-6 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Base allowance</div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
             {[
               ['schoolLimit', 'School day'],
               ['weekendLimit', 'Weekend'],
               ['holidayLimit', 'Holiday'],
-              ['maxSessionMinutes', 'Max session'],
             ].map(([field, label]) => (
               <label key={field} className="rounded-2xl bg-slate-50 p-3">
                 <span className="text-xs font-bold text-slate-400">{label}</span>
@@ -258,6 +263,25 @@ export default function ParentDashboard({
               </label>
             ))}
           </div>
+
+          <div className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Earnable bonus cap</div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {[
+              ['schoolEarnCapMinutes', 'School day'],
+              ['weekendEarnCapMinutes', 'Weekend'],
+              ['holidayEarnCapMinutes', 'Holiday'],
+            ].map(([field, label]) => (
+              <label key={field} className="rounded-2xl bg-emerald-50/70 p-3">
+                <span className="text-xs font-bold text-emerald-700">{label}</span>
+                <div className="mt-1 flex items-center gap-1"><input type="number" min="0" max="60" value={policy[field]} onChange={(event) => changeLimit(field, event.target.value)} className="w-full bg-transparent text-2xl font-black outline-none" /><span className="text-sm font-bold text-slate-400">min</span></div>
+              </label>
+            ))}
+          </div>
+
+          <label className="mt-4 flex max-w-xs items-center justify-between gap-4 rounded-2xl bg-slate-50 p-3">
+            <span><span className="block text-xs font-bold text-slate-400">Max session</span><span className="text-xs text-slate-400">Longest play session</span></span>
+            <span className="flex items-center gap-1"><input type="number" min="5" max="60" value={policy.maxSessionMinutes} onChange={(event) => changeLimit('maxSessionMinutes', event.target.value)} className="w-16 bg-transparent text-right text-2xl font-black outline-none" /><span className="text-sm font-bold text-slate-400">min</span></span>
+          </label>
 
           <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><Moon className="text-indigo-500" size={20} /><div><strong>Bedtime protection</strong><span className="block text-slate-400">Stops 60 min before bed</span></div></div>
@@ -273,7 +297,7 @@ export default function ParentDashboard({
               {[...earnTasks.map((task) => ({ ...task, kind: 'earn' })), ...spendTasks.map((task) => ({ ...task, kind: 'spend' }))].map((task) => (
                 <div key={task.id} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${task.kind === 'earn' ? 'bg-emerald-100 text-emerald-600' : 'bg-violet-100 text-violet-600'}`}>{task.kind === 'earn' ? <Gift size={18} /> : <Gamepad2 size={18} />}</div>
-                  <div className="min-w-0 flex-1"><div className="truncate font-bold">{task.title}</div><div className="text-xs text-slate-400">{task.duration} min · {task.kind === 'earn' ? `+${task.reward}` : `-${task.cost}`}</div></div>
+                  <div className="min-w-0 flex-1"><div className="truncate font-bold">{task.title}</div><div className="text-xs text-slate-400">{task.duration} min · {task.kind === 'earn' ? `+${task.reward} bonus` : 'uses today’s allowance'}</div></div>
                   <button onClick={() => onEditTask(task, task.kind)} className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-slate-950"><Pencil size={16} /></button>
                   <button onClick={() => onDeleteTask(task.id, task.kind)} className="rounded-lg p-2 text-slate-400 hover:bg-white hover:text-red-500"><Trash2 size={16} /></button>
                 </div>

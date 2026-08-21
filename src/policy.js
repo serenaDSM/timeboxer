@@ -10,10 +10,13 @@ export const POLICY_PRESETS = {
   strict: {
     id: 'strict',
     name: 'Strict Reset',
-    description: 'A short reset for families that need firmer boundaries.',
-    schoolLimit: 20,
-    weekendLimit: 40,
-    holidayLimit: 60,
+    description: 'A short 2–4 week reset with firm, predictable boundaries.',
+    schoolLimit: 10,
+    weekendLimit: 20,
+    holidayLimit: 30,
+    schoolEarnCapMinutes: 10,
+    weekendEarnCapMinutes: 20,
+    holidayEarnCapMinutes: 20,
     maxSessionMinutes: 20,
     cooldownMinutes: 10,
     cooldownTriggerMinutes: 20,
@@ -22,11 +25,29 @@ export const POLICY_PRESETS = {
   balanced: {
     id: 'balanced',
     name: 'Balanced',
-    description: 'A simple everyday plan with room for choice.',
+    description: 'A simple everyday plan with a small base and earnable bonus.',
+    schoolLimit: 20,
+    weekendLimit: 30,
+    holidayLimit: 40,
+    schoolEarnCapMinutes: 10,
+    weekendEarnCapMinutes: 20,
+    holidayEarnCapMinutes: 20,
+    maxSessionMinutes: 20,
+    cooldownMinutes: 10,
+    cooldownTriggerMinutes: 20,
+    bedtimeBufferMinutes: 60,
+  },
+  collaborative: {
+    id: 'collaborative',
+    name: 'Collaborative',
+    description: 'More autonomy after the child is following the plan reliably.',
     schoolLimit: 30,
-    weekendLimit: 60,
-    holidayLimit: 90,
-    maxSessionMinutes: 30,
+    weekendLimit: 45,
+    holidayLimit: 60,
+    schoolEarnCapMinutes: 10,
+    weekendEarnCapMinutes: 15,
+    holidayEarnCapMinutes: 15,
+    maxSessionMinutes: 25,
     cooldownMinutes: 10,
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
@@ -51,17 +72,30 @@ export function getBaseDailyLimit(policy, dayType) {
   return policy.schoolLimit;
 }
 
-export function getDailyLimit({ policy, dayType, bonusMinutes = 0 }) {
-  const base = getBaseDailyLimit(policy, dayType);
+export function getEarnBonusCap(policy, dayType) {
+  if (dayType === 'holiday') return Math.max(0, Number(policy.holidayEarnCapMinutes) || 0);
+  if (dayType === 'weekend') return Math.max(0, Number(policy.weekendEarnCapMinutes) || 0);
+  return Math.max(0, Number(policy.schoolEarnCapMinutes) || 0);
+}
+
+export function getMaximumDailyLimit(policy, dayType) {
   return Math.min(
     PUBLIC_HEALTH_CEILING_MINUTES,
-    Math.max(0, Number(base) + Math.max(0, Number(bonusMinutes))),
+    getBaseDailyLimit(policy, dayType) + getEarnBonusCap(policy, dayType),
   );
 }
 
-export function getTodayAvailableMinutes({ balance, todaySpent, dailyLimit }) {
-  const remainingLimit = Math.max(0, Number(dailyLimit) - Number(todaySpent));
-  return Math.max(0, Math.min(Number(balance), remainingLimit));
+export function getDailyLimit({ policy, dayType, earnedMinutes = 0, bonusMinutes = 0 }) {
+  const base = getBaseDailyLimit(policy, dayType);
+  const earned = Math.min(getEarnBonusCap(policy, dayType), Math.max(0, Number(earnedMinutes)));
+  return Math.min(
+    PUBLIC_HEALTH_CEILING_MINUTES,
+    Math.max(0, Number(base) + earned + Math.max(0, Number(bonusMinutes))),
+  );
+}
+
+export function getTodayAvailableMinutes({ todaySpent, dailyLimit }) {
+  return Math.max(0, Number(dailyLimit) - Number(todaySpent));
 }
 
 export function getBedtimeCutoff(bedtime = '20:30', bufferMinutes = 60) {
@@ -93,19 +127,14 @@ export function shouldTriggerCooldown(playedMinutes, triggerMinutes = 20) {
 
 export function getEffectivePlayDuration({
   requestedDuration,
-  requestedCost,
-  balance,
   remainingDailyMinutes,
   maxSessionMinutes,
 }) {
   const duration = Math.max(0, Number(requestedDuration));
-  const cost = Math.max(0, Number(requestedCost));
-  if (!duration || !cost) return 0;
+  if (!duration) return 0;
 
-  const affordableDuration = Math.floor((Math.max(0, Number(balance)) * duration) / cost);
   return Math.max(0, Math.floor(Math.min(
     duration,
-    affordableDuration,
     Math.max(0, Number(remainingDailyMinutes)),
     Math.max(0, Number(maxSessionMinutes)),
   )));

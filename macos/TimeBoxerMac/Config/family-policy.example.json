@@ -11,9 +11,9 @@
   "dayOverride": null,
   "enforcementMode": "observe",
   "limits": {
-    "holiday": 90,
-    "school": 30,
-    "weekend": 60
+    "holiday": 40,
+    "school": 20,
+    "weekend": 30
   },
   "usedMinutesToday": 0
 }

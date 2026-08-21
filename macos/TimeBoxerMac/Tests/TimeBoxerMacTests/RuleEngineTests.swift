@@ -15,14 +15,14 @@ final class RuleEngineTests: XCTestCase {
         let friday = makeDate(year: 2026, month: 8, day: 14, hour: 12)
         let saturday = makeDate(year: 2026, month: 8, day: 15, hour: 12)
 
-        XCTAssertEqual(engine.dailyLimit(for: policy, date: friday, calendar: calendar), 30)
-        XCTAssertEqual(engine.dailyLimit(for: policy, date: saturday, calendar: calendar), 60)
+        XCTAssertEqual(engine.dailyLimit(for: policy, date: friday, calendar: calendar), 20)
+        XCTAssertEqual(engine.dailyLimit(for: policy, date: saturday, calendar: calendar), 30)
     }
 
     func testHolidayOverrideAndBonusStayUnderCeiling() {
         var policy = FamilyPolicy.safeDefault
         policy.dayOverride = .holiday
-        policy.bonusMinutesToday = 50
+        policy.bonusMinutesToday = 100
 
         let date = makeDate(year: 2026, month: 8, day: 14, hour: 12)
         XCTAssertEqual(engine.dailyLimit(for: policy, date: date, calendar: calendar), 120)
@@ -30,7 +30,7 @@ final class RuleEngineTests: XCTestCase {
 
     func testBlocksWhenDailyLimitIsUsed() {
         var policy = FamilyPolicy.safeDefault
-        policy.usedMinutesToday = 30
+        policy.usedMinutesToday = 20
         let date = makeDate(year: 2026, month: 8, day: 14, hour: 12)
 
         XCTAssertEqual(engine.decision(for: policy, date: date, calendar: calendar), .blocked(.dailyLimitReached))

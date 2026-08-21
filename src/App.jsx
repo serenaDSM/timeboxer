@@ -3,15 +3,17 @@ import { LockKeyhole } from 'lucide-react';
 import { useStore } from './store.js';
 import { getLocalDateKey } from './date.js';
 import {
+  getBaseDailyLimit,
   getBedtimeCutoff,
   getDailyLimit,
   getDayType,
+  getEarnBonusCap,
   getEffectivePlayDuration,
   getTodayAvailableMinutes,
   isInsideBedtimeBlock,
   shouldTriggerCooldown,
 } from './policy.js';
-import { getProratedSpendCost, validateTaskInput } from './rules.js';
+import { validateTaskInput } from './rules.js';
 import Timer from './components/Timer.jsx';
 import Onboarding from './components/Onboarding.jsx';
 import ChildDashboard from './components/ChildDashboard.jsx';
@@ -29,6 +31,7 @@ const getInitialRole = () => {
 function App() {
   const {
     availableMinutes,
+    availableMinutesDate,
     todaySpent,
     lastSpentDate,
     cooldownUntil,
@@ -122,13 +125,19 @@ function App() {
   const todayKey = currentDate ? getLocalDateKey(currentDate) : '';
   const dayType = currentDate ? getDayType({ date: currentDate, dayOverrides }) : 'school';
   const actualTodaySpent = lastSpentDate === todayKey ? todaySpent : 0;
+  const baseDailyLimit = getBaseDailyLimit(policy, dayType);
+  const earnBonusCap = getEarnBonusCap(policy, dayType);
+  const earnedMinutesToday = availableMinutesDate === todayKey
+    ? Math.min(availableMinutes, earnBonusCap)
+    : 0;
+  const parentBonusToday = dailyBonuses[todayKey] || 0;
   const dailyLimit = getDailyLimit({
     policy,
     dayType,
-    bonusMinutes: dailyBonuses[todayKey] || 0,
+    earnedMinutes: earnedMinutesToday,
+    bonusMinutes: parentBonusToday,
   });
   const todayAvailable = getTodayAvailableMinutes({
-    balance: availableMinutes,
     todaySpent: actualTodaySpent,
     dailyLimit,
   });
@@ -151,18 +160,19 @@ function App() {
       holidayLimit: policy.holidayLimit,
       dayOverride: dayOverrides[todayKey] || null,
       usedMinutesToday: actualTodaySpent,
-      bonusMinutesToday: dailyBonuses[todayKey] || 0,
+      bonusMinutesToday: earnedMinutesToday + parentBonusToday,
     });
   }, [
     actualTodaySpent,
-    dailyBonuses,
     dayOverrides,
+    earnedMinutesToday,
     familyProfile.bedtime,
     familyProfile.childName,
     policy.bedtimeBufferMinutes,
     policy.holidayLimit,
     policy.schoolLimit,
     policy.weekendLimit,
+    parentBonusToday,
     todayKey,
   ]);
 
@@ -209,6 +219,10 @@ function App() {
   );
 
   const startEarn = async (task) => {
+    if (earnedMinutesToday >= earnBonusCap) {
+      window.alert('Today’s earnable bonus is complete. Enjoy the activities without collecting more screen time.');
+      return;
+    }
     if (testTimerSeconds <= 0 && !isEarnTimerFullscreenReady()) {
       try {
         await document.documentElement.requestFullscreen();
@@ -247,20 +261,17 @@ function App() {
     const remainingDailyMinutes = Math.max(0, dailyLimit - actualTodaySpent);
     const duration = getEffectivePlayDuration({
       requestedDuration: task.duration,
-      requestedCost: task.cost,
-      balance: availableMinutes,
       remainingDailyMinutes,
       maxSessionMinutes: policy.maxSessionMinutes,
     });
     if (duration < 1) {
       blockPlay(remainingDailyMinutes < 1
         ? 'Today’s entertainment limit has been reached.'
-        : 'Earn some time before starting entertainment.');
+        : 'Entertainment is not available right now.');
       return;
     }
 
-    const cost = getProratedSpendCost(duration, task.duration, task.cost);
-    setActiveTimer({ mode: 'spend', duration, cost, taskTitle: task.title });
+    setActiveTimer({ mode: 'spend', duration, taskTitle: task.title });
     setChildStatus({
       kind: 'playing',
       taskTitle: task.title,
@@ -276,7 +287,7 @@ function App() {
     if (activeTimer.mode === 'earn') {
       addMinutes(activeTimer.reward + Math.min(30, extraMinutes));
     } else {
-      recordSpend(duration, activeTimer.cost, true);
+      recordSpend(duration, true);
     }
     setChildStatus({ kind: 'idle' });
     setActiveTimer(null);
@@ -285,10 +296,8 @@ function App() {
   const handleTimerCancel = useCallback((playedMinutes = null) => {
     if (!activeTimer) return;
     if (activeTimer.mode === 'spend' && playedMinutes !== null && playedMinutes > 0) {
-      const actualCost = getProratedSpendCost(playedMinutes, activeTimer.duration, activeTimer.cost);
       recordSpend(
         playedMinutes,
-        actualCost,
         shouldTriggerCooldown(playedMinutes, policy.cooldownTriggerMinutes),
       );
     } else if (activeTimer.mode === 'earn') {
@@ -303,10 +312,9 @@ function App() {
     if (title === null) return;
     const duration = window.prompt('Duration in minutes:', String(task?.duration || 30));
     if (duration === null) return;
-    const value = window.prompt(
-      type === 'earn' ? 'Time coins earned:' : 'Time coins used:',
-      String(type === 'earn' ? task?.reward || 30 : task?.cost || 30),
-    );
+    const value = type === 'earn'
+      ? window.prompt('Bonus entertainment minutes earned:', String(task?.reward || 5))
+      : duration;
     if (value === null) return;
     const validation = validateTaskInput({ title, duration, value, type });
     if (!validation.ok) {
@@ -319,7 +327,7 @@ function App() {
       title: validation.title,
       duration: validation.duration,
       icon: task?.icon || (type === 'earn' ? 'Sparkles' : 'Gamepad2'),
-      [type === 'earn' ? 'reward' : 'cost']: validation.value,
+      ...(type === 'earn' ? { reward: validation.value } : {}),
     };
     if (task) {
       if (type === 'earn') updateEarnTask(task.id, nextTask);
@@ -348,7 +356,7 @@ function App() {
   };
 
   const resetData = () => {
-    if (window.confirm('Reset time coins, usage, requests and activity history?')) resetAllData();
+    if (window.confirm('Reset today’s bonus, usage, requests and activity history?')) resetAllData();
   };
 
   if (!hasSeenOnboarding) {
@@ -405,9 +413,12 @@ function App() {
         dayType={dayType}
         todayKey={todayKey}
         dailyLimit={dailyLimit}
+        baseDailyLimit={baseDailyLimit}
         todaySpent={actualTodaySpent}
         todayAvailable={todayAvailable}
-        balance={availableMinutes}
+        earnedMinutesToday={earnedMinutesToday}
+        earnBonusCap={earnBonusCap}
+        parentBonusToday={parentBonusToday}
         testTimerSeconds={testTimerSeconds}
         childStatus={childStatus}
         pendingRequests={pendingRequests}
@@ -439,9 +450,11 @@ function App() {
       policy={policy}
       dayType={dayType}
       dailyLimit={dailyLimit}
+      baseDailyLimit={baseDailyLimit}
       todaySpent={actualTodaySpent}
       todayAvailable={todayAvailable}
-      balance={availableMinutes}
+      earnedMinutesToday={earnedMinutesToday}
+      earnBonusCap={earnBonusCap}
       cooldownRemaining={cooldownRemaining}
       bedtimeCutoff={bedtimeCutoff}
       bedtimeBlocked={bedtimeBlocked}

@@ -21,9 +21,11 @@ export default function ChildDashboard({
   policy,
   dayType,
   dailyLimit,
+  baseDailyLimit,
   todaySpent,
   todayAvailable,
-  balance,
+  earnedMinutesToday,
+  earnBonusCap,
   cooldownRemaining,
   bedtimeCutoff,
   bedtimeBlocked,
@@ -35,11 +37,12 @@ export default function ChildDashboard({
   onRequestExtra,
   onOpenParent,
 }) {
-  const remainingDaily = Math.max(0, dailyLimit - todaySpent);
   const progress = dailyLimit ? Math.min(100, (todaySpent / dailyLimit) * 100) : 100;
   const isCoolingDown = cooldownRemaining > 0;
   const cooldownMinutes = Math.max(1, Math.ceil(cooldownRemaining / 60000));
   const isBlocked = bedtimeBlocked || isCoolingDown || todayAvailable <= 0;
+  const earnBonusRemaining = Math.max(0, earnBonusCap - earnedMinutesToday);
+  const isEarnComplete = earnBonusRemaining <= 0;
 
   return (
     <div className="min-h-[100dvh] bg-[#f8faf8] text-slate-950">
@@ -58,7 +61,7 @@ export default function ChildDashboard({
           <div className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-black text-emerald-600"><Sparkles size={17} /> {DAY_TYPES[dayType]} plan</div>
             <div className="mt-5 text-2xl font-black">{dayType === 'weekend' ? 'Saturday & Sunday' : DAY_TYPES[dayType]}</div>
-            <div className="mt-1 text-sm text-slate-400">{remainingDaily} entertainment minutes left today</div>
+            <div className="mt-1 text-sm text-slate-400">{baseDailyLimit} base + up to {earnBonusCap} earned</div>
           </div>
 
           <div className="rounded-[26px] border border-emerald-100 bg-white p-6 shadow-sm">
@@ -69,7 +72,7 @@ export default function ChildDashboard({
                 <div className="mt-1 text-sm font-bold text-slate-500">minutes available</div>
               </div>
             </div>
-            <div className="mt-4 text-xs text-slate-400">You have {balance} time coins.</div>
+            <div className="mt-4 text-xs text-slate-400">{earnedMinutesToday} of {earnBonusCap} bonus minutes earned today.</div>
           </div>
 
           <div className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -93,16 +96,16 @@ export default function ChildDashboard({
           <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="mb-5 flex items-end justify-between gap-4">
               <div><div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Earn</div><h2 className="mt-1 text-2xl font-black tracking-tight">Choose something useful</h2></div>
-              <div className="hidden text-sm text-slate-400 sm:block">Finish the target to earn</div>
+              <div className="hidden text-sm text-slate-400 sm:block">{isEarnComplete ? 'Today’s bonus is complete' : `${earnBonusRemaining} bonus min left`}</div>
             </div>
             <div className="space-y-3">
               {earnTasks.map((task) => {
                 const Icon = ICONS[task.icon] || Sparkles;
                 return (
-                  <button key={task.id} onClick={() => onEarn(task)} className="group flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-md">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-[#35d532]"><Icon size={23} /></div>
+                  <button key={task.id} onClick={() => onEarn(task)} disabled={isEarnComplete} className={`group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${isEarnComplete ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400' : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-md'}`}>
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${isEarnComplete ? 'bg-white text-slate-300' : 'bg-emerald-50 text-[#35d532]'}`}><Icon size={23} /></div>
                     <div className="min-w-0 flex-1"><div className="truncate font-black">{task.title}</div><div className="mt-1 text-sm text-slate-400">{task.duration} min target</div></div>
-                    <div className="font-black text-[#35d532]">+{task.reward}m</div>
+                    <div className={`font-black ${isEarnComplete ? 'text-slate-300' : 'text-[#35d532]'}`}>{isEarnComplete ? 'Done' : `+${Math.min(task.reward, earnBonusRemaining)}m`}</div>
                     <ChevronRight size={18} className="text-slate-300 transition group-hover:translate-x-1" />
                   </button>
                 );

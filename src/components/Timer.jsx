@@ -563,7 +563,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
         {showWarning ? (
           <span className="text-red-500 font-bold animate-pulse text-lg">⚠️ 警告：检测到页面切换或窗口缩小，计时已暂停！</span>
         ) : isOvertime ? (
-          <span className="text-[#FFD700]">Target Reached! Keep going to earn bonus time coins, or click the Trophy to claim.</span>
+          <span className="text-[#FFD700]">Target reached! Keep going, or click the Trophy to claim today’s bonus.</span>
         ) : (
           <span>Stay focused. {isEarnMode && "Switching apps or shrinking the window will pause the timer."}</span>
         )}
