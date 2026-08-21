@@ -19,12 +19,13 @@ else
 fi
 
 XCODEBUILD_BIN="$XCODE_DEVELOPER_DIR/usr/bin/xcodebuild"
+ASSET_CATALOG_COMPILER="$XCODE_DEVELOPER_DIR/usr/bin/actool"
 SWIFT_BIN="$XCODE_DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
 MACOS_SDK="$XCODE_DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 
 cd "$PROJECT_ROOT"
 
-if [[ ! -x "$XCODEBUILD_BIN" || ! -x "$SWIFT_BIN" || ! -d "$MACOS_SDK" ]]; then
+if [[ ! -x "$XCODEBUILD_BIN" || ! -x "$ASSET_CATALOG_COMPILER" || ! -x "$SWIFT_BIN" || ! -d "$MACOS_SDK" ]]; then
   echo "Full Xcode is required to compile the macOS app. Install Xcode, open it once, then select it with xcode-select." >&2
   exit 2
 fi
@@ -45,6 +46,13 @@ cp "$MAC_ROOT/.build/release/TimeBoxerMac" "$CONTENTS/MacOS/TimeBoxerMac"
 cp "$MAC_ROOT/App/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$PROJECT_ROOT/dist/." "$CONTENTS/Resources/WebApp/"
 node "$SCRIPT_DIR/inline-web-assets.mjs" "$CONTENTS/Resources/WebApp"
+"$ASSET_CATALOG_COMPILER" \
+  --compile "$CONTENTS/Resources" \
+  --platform macosx \
+  --minimum-deployment-target 13.0 \
+  --app-icon AppIcon \
+  --output-partial-info-plist "$STAGING_DIRECTORY/asset-info.plist" \
+  "$MAC_ROOT/App/Assets.xcassets"
 
 xattr -cr "$APP_ROOT"
 # iCloud/File Provider can attach these directory attributes immediately after
