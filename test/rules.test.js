@@ -6,6 +6,7 @@ import {
   validateTaskInput,
 } from '../src/rules.js';
 import {
+  DEFAULT_RESTRICTED_DOMAINS,
   getAutomaticDayType,
   getBedtimeCutoff,
   getDailyLimit,
@@ -16,6 +17,7 @@ import {
   isInsideBedtimeBlock,
   POLICY_PRESETS,
   shouldTriggerCooldown,
+  WEB_RESTRICTION_OPTIONS,
 } from '../src/policy.js';
 import {
   DEFAULT_EARN_TASKS,
@@ -76,6 +78,13 @@ test('combines a base allowance with a capped earnable bonus', () => {
   assert.equal(getDailyLimit({ policy: POLICY_PRESETS.balanced, dayType: 'holiday', earnedMinutes: 50 }), 60);
   assert.equal(getEarnBonusCap(POLICY_PRESETS.balanced, 'weekend'), 20);
   assert.equal(getMaximumDailyLimit(POLICY_PRESETS.collaborative, 'holiday'), 75);
+});
+
+test('keeps the parent website choices inside every policy preset', () => {
+  assert.equal(DEFAULT_RESTRICTED_DOMAINS.length, WEB_RESTRICTION_OPTIONS.length);
+  assert.equal(POLICY_PRESETS.strict.restrictedDomains.includes('youtube.com'), true);
+  assert.equal(POLICY_PRESETS.balanced.restrictedDomains.includes('bilibili.com'), true);
+  assert.equal(POLICY_PRESETS.collaborative.restrictedDomains.includes('poki.com'), true);
 });
 
 test('shows the remaining current allowance after today’s use', () => {

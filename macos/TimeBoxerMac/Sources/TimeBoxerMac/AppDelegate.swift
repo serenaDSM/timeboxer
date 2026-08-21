@@ -62,6 +62,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
 
+        monitor.onBlockedWebsite = { [weak self] application, host, reason, mode in
+            let browserName = application.localizedName ?? "Browser"
+            let contentName = host ?? "Browser supervision"
+            self?.webController.sendNativeEvent(type: "application-blocked", payload: [
+                "bundleIdentifier": application.bundleIdentifier ?? "unknown",
+                "applicationName": browserName,
+                "host": host ?? "unknown",
+                "mode": mode.rawValue,
+                "message": "\(contentName) in \(browserName) was \(mode == .enforce ? "blocked" : "observed"): \(reason.title).",
+            ])
+            guard mode == .enforce else { return }
+            self?.shieldController.show(
+                applicationName: host.map { "\($0) in \(browserName)" } ?? browserName,
+                reason: reason
+            )
+        }
+
         shieldController.onEarnTime = { [weak self] in
             self?.webController.show(.child)
         }
@@ -274,6 +291,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.bonusMinutesToday = payload["bonusMinutesToday"] as? Int ?? policy.bonusMinutesToday
         policy.enforcementMode = .enforce
         policy.blockedBundleIdentifiers.formUnion(FamilyPolicy.safeDefault.blockedBundleIdentifiers)
+        if let domains = payload["restrictedDomains"] as? [String] {
+            policy.restrictedDomains = Set(domains.compactMap { domain in
+                let normalized = domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                return normalized.isEmpty ? nil : normalized
+            })
+        }
         if let rawDayType = payload["dayOverride"] as? String {
             policy.dayOverride = TimeBoxerDayType(rawValue: rawDayType)
         } else {

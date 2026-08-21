@@ -29,6 +29,7 @@ struct FamilyPolicy: Codable, Equatable, Sendable {
     var dayOverride: TimeBoxerDayType?
     var activeEntertainmentUntil: Date?
     var blockedBundleIdentifiers: Set<String>
+    var restrictedDomains: Set<String>
     var enforcementMode: EnforcementMode
 
     static let safeDefault = FamilyPolicy(
@@ -41,22 +42,30 @@ struct FamilyPolicy: Codable, Equatable, Sendable {
         dayOverride: nil,
         activeEntertainmentUntil: nil,
         blockedBundleIdentifiers: [
+            "com.apple.TV",
+            "com.bilibili.bilibiliPC",
+            "com.iqiyi.player",
+            "com.mgtv.pcclientx",
             "com.valvesoftware.steam",
             "com.roblox.Roblox",
             "com.mojang.minecraftlauncher",
+            "com.tencent.tenvideo",
         ],
+        restrictedDomains: WebsiteClassification.defaultRestrictedDomains,
         enforcementMode: .enforce
     )
 }
 
 enum BlockReason: Equatable, Sendable {
     case bedtime
+    case browserSupervisionUnavailable
     case outsideApprovedSession
     case dailyLimitReached
 
     var title: String {
         switch self {
         case .bedtime: "Entertainment is finished for today"
+        case .browserSupervisionUnavailable: "Browser supervision needs parent approval"
         case .outsideApprovedSession: "Start Play in TimeBoxer first"
         case .dailyLimitReached: "Today’s entertainment time is used up"
         }
@@ -65,6 +74,7 @@ enum BlockReason: Equatable, Sendable {
     var detail: String {
         switch self {
         case .bedtime: "Your family plan stops entertainment one hour before bedtime."
+        case .browserSupervisionUnavailable: "Ask a parent to allow TimeBoxer to read the active browser tab in System Settings."
         case .outsideApprovedSession: "Entertainment stays closed until an approved Play timer is running."
         case .dailyLimitReached: "Earn more time or ask a parent for a one-day exception."
         }

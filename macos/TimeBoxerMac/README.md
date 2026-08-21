@@ -22,7 +22,9 @@ The local policy is created on first launch at:
 
 TimeBoxer registers itself to start at login. Turning that setting off or quitting the app requires the shared parent PIN. Force Quit and administrator-level removal are not yet prevented; production-grade tamper resistance requires a privileged helper or Apple system parental-control capabilities.
 
-The current monitor identifies native applications through the family Bundle ID list and all macOS game categories, including specific categories such as board, strategy, and role-playing games. It cannot distinguish YouTube or a web game from homework inside the same browser; URL-level control requires a browser extension, Network Extension, or Apple Family Controls.
+The monitor identifies native applications through the family Bundle ID list and all macOS game categories, including specific categories such as board, strategy, and role-playing games. It also reads the front Safari or Chrome tab and hides the browser when a parent-selected video or web-game domain is opened outside approved Play time. The parent dashboard includes simple domain toggles. macOS asks the parent for browser Automation permission; strict enforcement hides the browser instead of silently allowing access when that permission is unavailable.
+
+This Apple Events browser check is a practical local prototype, not the public-distribution endpoint. Broader browser coverage and tamper-resistant URL filtering still require a browser extension, Network Extension, or Apple Family Controls.
 
 ## Build and test
 
@@ -47,11 +49,21 @@ xcodebuild -license
 xcodebuild -version
 ```
 
-The locally verified app is installed at `/Applications/TimeBoxer.app`. Ten native rule/state/classification XCTest cases pass.
+The locally verified app is installed at `/Applications/TimeBoxer.app`. Fourteen native rule/state/classification XCTest cases pass.
 
 ## Safe shield demo
 
 The menu bar item includes `Show Demo Shield`. It displays the shield without monitoring or terminating an application. The three actions intentionally keep access to Earn Time, Ask Parent, and homework.
+
+## Browser protection test
+
+1. In the parent dashboard, leave `YouTube` selected under Website protection.
+2. Make sure no Play timer is running, then open YouTube in Safari or Chrome.
+3. Approve the one-time macOS Automation request for TimeBoxer. The browser should hide, the shield should appear, and the family activity list should record the block.
+4. Click `Return to homework` and open a non-entertainment site such as Google Docs; it should remain available.
+5. Start a Play timer and open YouTube again; it should remain available until the timer ends.
+
+If Automation permission is declined, strict mode hides the browser and asks for parent approval instead of silently allowing unmonitored browsing. Permission can be changed later in System Settings under Privacy & Security > Automation.
 
 ## Next native milestones
 

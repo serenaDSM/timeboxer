@@ -163,6 +163,7 @@ function App() {
       dayOverride: dayOverrides[todayKey] || null,
       usedMinutesToday: actualTodaySpent,
       bonusMinutesToday: earnedMinutesToday + parentBonusToday,
+      restrictedDomains: policy.restrictedDomains,
       enforcementMode: 'enforce',
     });
   }, [
@@ -173,6 +174,7 @@ function App() {
     familyProfile.childName,
     policy.bedtimeBufferMinutes,
     policy.holidayLimit,
+    policy.restrictedDomains,
     policy.schoolLimit,
     policy.weekendLimit,
     parentBonusToday,

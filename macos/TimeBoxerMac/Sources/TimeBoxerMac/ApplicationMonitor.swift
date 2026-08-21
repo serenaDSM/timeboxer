@@ -7,9 +7,57 @@ enum EntertainmentClassification {
     }
 }
 
+enum WebsiteClassification {
+    static let supportedBrowserBundleIdentifiers: Set<String> = [
+        "com.apple.Safari",
+        "com.google.Chrome",
+    ]
+
+    static let defaultRestrictedDomains: Set<String> = [
+        "bilibili.com",
+        "crazygames.com",
+        "disneyplus.com",
+        "iqiyi.com",
+        "mgtv.com",
+        "miniclip.com",
+        "netflix.com",
+        "now.gg",
+        "poki.com",
+        "roblox.com",
+        "tiktok.com",
+        "twitch.tv",
+        "v.qq.com",
+        "youku.com",
+        "youtube.com",
+    ]
+
+    static let domainAliases: [String: Set<String>] = [
+        "youtube.com": ["youtu.be", "youtube-nocookie.com"],
+    ]
+
+    static func host(from urlString: String) -> String? {
+        guard let host = URLComponents(string: urlString)?.host?.lowercased() else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    static func isRestrictedHost(
+        _ host: String,
+        restrictedDomains: Set<String> = defaultRestrictedDomains
+    ) -> Bool {
+        let normalizedHost = host.lowercased()
+        let effectiveDomains = restrictedDomains.reduce(into: restrictedDomains) { result, domain in
+            result.formUnion(domainAliases[domain] ?? [])
+        }
+        return effectiveDomains.contains { domain in
+            normalizedHost == domain || normalizedHost.hasSuffix(".\(domain)")
+        }
+    }
+}
+
 @MainActor
 final class ApplicationMonitor: NSObject {
     typealias BlockHandler = (NSRunningApplication, BlockReason, EnforcementMode) -> Void
+    typealias WebsiteBlockHandler = (NSRunningApplication, String?, BlockReason, EnforcementMode) -> Void
 
     private let workspace: NSWorkspace
     private let policyStore: PolicyStore
@@ -24,12 +72,16 @@ final class ApplicationMonitor: NSObject {
     ]
     private var monitorTimer: Timer?
     private var lastReports: [String: (reason: BlockReason, mode: EnforcementMode, date: Date)] = [:]
+    private var lastWebsiteReports: [String: (reason: BlockReason, mode: EnforcementMode, date: Date)] = [:]
     private var entertainmentClassificationCache: [String: Bool] = [:]
     private var terminationRequestedAt: [pid_t: Date] = [:]
+    private var browserURLRetryAfter = Date.distantPast
     private let reportCooldown: TimeInterval = 60
     private let forceTerminationDelay: TimeInterval = 2
+    private let browserURLRetryDelay: TimeInterval = 5
 
     var onBlockedApplication: BlockHandler?
+    var onBlockedWebsite: WebsiteBlockHandler?
 
     init(
         workspace: NSWorkspace = .shared,
@@ -91,6 +143,7 @@ final class ApplicationMonitor: NSObject {
         for application in applications {
             evaluate(application)
         }
+        evaluateFrontmostBrowser()
     }
 
     private func evaluate(_ notification: Notification) {
@@ -176,5 +229,99 @@ final class ApplicationMonitor: NSObject {
         let isGame = EntertainmentClassification.isGameCategory(category)
         entertainmentClassificationCache[bundleIdentifier] = isGame
         return isGame
+    }
+
+    private func evaluateFrontmostBrowser() {
+        guard
+            let application = workspace.frontmostApplication,
+            let bundleIdentifier = application.bundleIdentifier,
+            WebsiteClassification.supportedBrowserBundleIdentifiers.contains(bundleIdentifier)
+        else { return }
+
+        let now = Date()
+        let decision = ruleEngine.decision(for: policyStore.policy, date: now, calendar: calendar)
+        guard let ruleReason = decision.reason else {
+            clearWebsiteReports(bundleIdentifier: bundleIdentifier)
+            return
+        }
+
+        let urlString = activeBrowserURL(bundleIdentifier: bundleIdentifier)
+        let host = urlString.flatMap(WebsiteClassification.host(from:))
+        let reason: BlockReason
+        if urlString != nil, host == nil {
+            // Browser-owned pages such as Safari Start Page or chrome://newtab
+            // have no web host but still prove that Automation access works.
+            clearWebsiteReports(bundleIdentifier: bundleIdentifier)
+            return
+        } else if let host {
+            guard WebsiteClassification.isRestrictedHost(
+                host,
+                restrictedDomains: policyStore.policy.restrictedDomains
+            ) else {
+                clearWebsiteReports(bundleIdentifier: bundleIdentifier)
+                return
+            }
+            reason = ruleReason
+        } else {
+            reason = .browserSupervisionUnavailable
+        }
+
+        let mode = policyStore.policy.enforcementMode
+        if mode == .enforce {
+            _ = application.hide()
+        }
+
+        let reportKey = "\(bundleIdentifier):\(host ?? "permission")"
+        if let lastReport = lastWebsiteReports[reportKey],
+           lastReport.reason == reason,
+           lastReport.mode == mode,
+           now.timeIntervalSince(lastReport.date) < reportCooldown {
+            return
+        }
+        lastWebsiteReports[reportKey] = (reason, mode, now)
+        onBlockedWebsite?(application, host, reason, mode)
+    }
+
+    private func clearWebsiteReports(bundleIdentifier: String) {
+        let prefix = "\(bundleIdentifier):"
+        lastWebsiteReports = lastWebsiteReports.filter { !$0.key.hasPrefix(prefix) }
+    }
+
+    private func activeBrowserURL(bundleIdentifier: String) -> String? {
+        let now = Date()
+        guard now >= browserURLRetryAfter else { return nil }
+
+        let source: String
+        switch bundleIdentifier {
+        case "com.apple.Safari":
+            source = """
+            tell application "Safari"
+                if (count of windows) is 0 then return ""
+                return URL of current tab of front window
+            end tell
+            """
+        case "com.google.Chrome":
+            source = """
+            tell application "Google Chrome"
+                if (count of windows) is 0 then return ""
+                return URL of active tab of front window
+            end tell
+            """
+        default:
+            return nil
+        }
+
+        guard let script = NSAppleScript(source: source) else { return nil }
+        var error: NSDictionary?
+        let result = script.executeAndReturnError(&error)
+        guard error == nil, let url = result.stringValue, !url.isEmpty else {
+            browserURLRetryAfter = now.addingTimeInterval(browserURLRetryDelay)
+            if let error {
+                NSLog("TimeBoxer could not read the browser URL: %@", String(describing: error))
+            }
+            return nil
+        }
+        browserURLRetryAfter = .distantPast
+        return url
     }
 }

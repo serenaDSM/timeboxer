@@ -6,6 +6,26 @@ export const DAY_TYPES = {
   holiday: 'Holiday',
 };
 
+export const WEB_RESTRICTION_OPTIONS = [
+  { domain: 'youtube.com', label: 'YouTube', group: 'Video' },
+  { domain: 'tiktok.com', label: 'TikTok', group: 'Video' },
+  { domain: 'twitch.tv', label: 'Twitch', group: 'Video' },
+  { domain: 'netflix.com', label: 'Netflix', group: 'Video' },
+  { domain: 'disneyplus.com', label: 'Disney+', group: 'Video' },
+  { domain: 'bilibili.com', label: 'Bilibili', group: 'Video' },
+  { domain: 'iqiyi.com', label: 'iQIYI', group: 'Video' },
+  { domain: 'v.qq.com', label: 'Tencent Video', group: 'Video' },
+  { domain: 'mgtv.com', label: 'Mango TV', group: 'Video' },
+  { domain: 'youku.com', label: 'Youku', group: 'Video' },
+  { domain: 'roblox.com', label: 'Roblox', group: 'Web games' },
+  { domain: 'poki.com', label: 'Poki', group: 'Web games' },
+  { domain: 'crazygames.com', label: 'CrazyGames', group: 'Web games' },
+  { domain: 'miniclip.com', label: 'Miniclip', group: 'Web games' },
+  { domain: 'now.gg', label: 'now.gg', group: 'Web games' },
+];
+
+export const DEFAULT_RESTRICTED_DOMAINS = WEB_RESTRICTION_OPTIONS.map(({ domain }) => domain);
+
 export const POLICY_PRESETS = {
   strict: {
     id: 'strict',
@@ -21,6 +41,7 @@ export const POLICY_PRESETS = {
     cooldownMinutes: 10,
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
+    restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
   },
   balanced: {
     id: 'balanced',
@@ -36,6 +57,7 @@ export const POLICY_PRESETS = {
     cooldownMinutes: 10,
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
+    restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
   },
   collaborative: {
     id: 'collaborative',
@@ -51,6 +73,7 @@ export const POLICY_PRESETS = {
     cooldownMinutes: 10,
     cooldownTriggerMinutes: 20,
     bedtimeBufferMinutes: 60,
+    restrictedDomains: [...DEFAULT_RESTRICTED_DOMAINS],
   },
 };
 

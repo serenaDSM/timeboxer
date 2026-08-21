@@ -16,7 +16,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { DAY_TYPES, getMaximumDailyLimit, POLICY_PRESETS } from '../policy.js';
+import {
+  DAY_TYPES,
+  getMaximumDailyLimit,
+  POLICY_PRESETS,
+  WEB_RESTRICTION_OPTIONS,
+} from '../policy.js';
 import BrandLogo from './BrandLogo.jsx';
 
 const formatEventTime = (timestamp) => new Intl.DateTimeFormat('en-NZ', {
@@ -70,6 +75,13 @@ export default function ParentDashboard({
     name: 'Custom',
     [field]: Number(value),
   });
+  const restrictedDomains = new Set(policy.restrictedDomains || []);
+  const toggleRestrictedDomain = (domain) => {
+    const nextDomains = new Set(restrictedDomains);
+    if (nextDomains.has(domain)) nextDomains.delete(domain);
+    else nextDomains.add(domain);
+    onUpdatePolicy({ restrictedDomains: [...nextDomains].sort() });
+  };
   const syncLabel = syncStatus === 'linked'
     ? 'Mac child linked · one shared state'
     : syncStatus === 'disconnected'
@@ -296,6 +308,37 @@ export default function ParentDashboard({
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><Moon className="text-indigo-500" size={20} /><div><strong>Bedtime protection</strong><span className="block text-slate-400">Stops 60 min before bed</span></div></div>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><Clock3 className="text-amber-500" size={20} /><div><strong>Eye break</strong><span className="block text-slate-400">10 min after long play</span></div></div>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><ShieldCheck className="text-emerald-500" size={20} /><div><strong>Health ceiling</strong><span className="block text-slate-400">Never above 120 min</span></div></div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={20} />
+              <div>
+                <div className="font-black">Website protection</div>
+                <div className="mt-1 text-sm text-slate-400">Selected sites are blocked in Safari and Chrome unless a Play timer is running.</div>
+              </div>
+            </div>
+            {['Video', 'Web games'].map((group) => (
+              <div key={group} className="mt-4">
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{group}</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {WEB_RESTRICTION_OPTIONS.filter((item) => item.group === group).map((item) => {
+                    const selected = restrictedDomains.has(item.domain);
+                    return (
+                      <button
+                        key={item.domain}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggleRestrictedDomain(item.domain)}
+                        className={`rounded-xl border px-3 py-2 text-xs font-black transition ${selected ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400'}`}
+                      >
+                        {selected ? '✓ ' : ''}{item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
