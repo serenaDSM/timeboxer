@@ -11,9 +11,17 @@ child web application or the macOS monitoring code.
 - One-time six-digit Mac pairing flow.
 - `FamilyCloudService` boundary so preview data can be replaced by the authenticated
   cloud client without coupling UI code to a backend SDK.
+- Real email/password registration, session restoration, sign-in and sign-out
+  through the dedicated TimeBoxer Supabase project.
+- Official `supabase-swift` dependency pinned exactly to `2.54.1`; only the
+  publishable client key is embedded and all data access remains protected by RLS.
 
-The current service is a local preview implementation. It does not yet connect to
-production Supabase or APNs.
+Authentication now connects to the hosted TimeBoxer project. Dashboard data and
+pairing still use the preview service until the family onboarding and device Edge
+Functions are connected. APNs is not connected yet.
+
+The current development Mac has the iOS 18.5 SDK but no iOS Simulator runtime.
+Install an iOS runtime from Xcode Settings > Components before running the scheme.
 
 ## Build locally
 

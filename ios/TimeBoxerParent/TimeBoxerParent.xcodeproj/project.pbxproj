@@ -12,6 +12,10 @@
 		100000000000000000000004 /* BrandViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000004 /* BrandViews.swift */; };
 		100000000000000000000005 /* ParentDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000005 /* ParentDashboardView.swift */; };
 		100000000000000000000006 /* PairChildMacView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* PairChildMacView.swift */; };
+		100000000000000000000007 /* SupabaseEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000007 /* SupabaseEnvironment.swift */; };
+		100000000000000000000008 /* AuthenticationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* AuthenticationModel.swift */; };
+		100000000000000000000009 /* ParentAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* ParentAuthView.swift */; };
+		10000000000000000000000A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000001 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +25,9 @@
 		200000000000000000000004 /* BrandViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandViews.swift; sourceTree = "<group>"; };
 		200000000000000000000005 /* ParentDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentDashboardView.swift; sourceTree = "<group>"; };
 		200000000000000000000006 /* PairChildMacView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairChildMacView.swift; sourceTree = "<group>"; };
+		200000000000000000000007 /* SupabaseEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseEnvironment.swift; sourceTree = "<group>"; };
+		200000000000000000000008 /* AuthenticationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationModel.swift; sourceTree = "<group>"; };
+		200000000000000000000009 /* ParentAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentAuthView.swift; sourceTree = "<group>"; };
 		200000000000000000000010 /* TimeBoxerParent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TimeBoxerParent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -28,7 +35,9 @@
 		300000000000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+				10000000000000000000000A /* Supabase in Frameworks */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -51,6 +60,9 @@
 				200000000000000000000004 /* BrandViews.swift */,
 				200000000000000000000005 /* ParentDashboardView.swift */,
 				200000000000000000000006 /* PairChildMacView.swift */,
+				200000000000000000000007 /* SupabaseEnvironment.swift */,
+				200000000000000000000008 /* AuthenticationModel.swift */,
+				200000000000000000000009 /* ParentAuthView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -75,6 +87,9 @@
 			buildRules = ();
 			dependencies = ();
 			name = TimeBoxerParent;
+			packageProductDependencies = (
+				B00000000000000000000001 /* Supabase */,
+			);
 			productName = TimeBoxerParent;
 			productReference = 200000000000000000000010 /* TimeBoxerParent.app */;
 			productType = "com.apple.product-type.application";
@@ -98,6 +113,9 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (en, Base);
 			mainGroup = 400000000000000000000001;
+			packageReferences = (
+				A00000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			productRefGroup = 400000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -125,6 +143,9 @@
 				100000000000000000000004 /* BrandViews.swift in Sources */,
 				100000000000000000000005 /* ParentDashboardView.swift in Sources */,
 				100000000000000000000006 /* PairChildMacView.swift in Sources */,
+				100000000000000000000007 /* SupabaseEnvironment.swift in Sources */,
+				100000000000000000000008 /* AuthenticationModel.swift in Sources */,
+				100000000000000000000009 /* ParentAuthView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -141,6 +162,8 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "TimeBoxer Parent";
+				INFOPLIST_KEY_TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "$(TIMEBOXER_SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_TIMEBOXER_SUPABASE_URL = "$(TIMEBOXER_SUPABASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -152,6 +175,8 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
+				TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_NV9ay5NPWlQ0KQhLbLdtog_BmuwJf6I";
+				TIMEBOXER_SUPABASE_URL = "https://jysdafvxexnyfplehqga.supabase.co";
 			};
 			name = Debug;
 		};
@@ -162,6 +187,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "TimeBoxer Parent";
+				INFOPLIST_KEY_TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "$(TIMEBOXER_SUPABASE_PUBLISHABLE_KEY)";
+				INFOPLIST_KEY_TIMEBOXER_SUPABASE_URL = "$(TIMEBOXER_SUPABASE_URL)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -173,6 +200,8 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 1;
+				TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_NV9ay5NPWlQ0KQhLbLdtog_BmuwJf6I";
+				TIMEBOXER_SUPABASE_URL = "https://jysdafvxexnyfplehqga.supabase.co";
 			};
 			name = Release;
 		};
@@ -192,6 +221,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.54.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B00000000000000000000001 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 700000000000000000000001 /* Project object */;
 }

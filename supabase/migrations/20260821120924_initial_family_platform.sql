@@ -201,6 +201,9 @@ alter table public.family_policies enable row level security;
 alter table public.activity_events enable row level security;
 alter table public.extra_time_requests enable row level security;
 alter table public.family_entitlements enable row level security;
+alter table private.device_credentials enable row level security;
+alter table private.device_pairing_sessions enable row level security;
+alter table private.push_tokens enable row level security;
 
 create policy "account owners can read their profile"
 on public.account_profiles for select to authenticated
@@ -347,6 +350,9 @@ revoke all on public.family_policies from anon, authenticated;
 revoke all on public.activity_events from anon, authenticated;
 revoke all on public.extra_time_requests from anon, authenticated;
 revoke all on public.family_entitlements from anon, authenticated;
+revoke all on private.device_credentials from public, anon, authenticated;
+revoke all on private.device_pairing_sessions from public, anon, authenticated;
+revoke all on private.push_tokens from public, anon, authenticated;
 
 grant select, insert, update (display_name, locale) on public.account_profiles to authenticated;
 grant select, insert, update (display_name, timezone) on public.families to authenticated;

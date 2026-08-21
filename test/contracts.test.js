@@ -11,6 +11,11 @@ const loadMigration = async () => readFile(
   'utf8',
 );
 
+const loadMembershipMigration = async () => readFile(
+  new URL('../supabase/migrations/20260821123535_rls_family_membership_helper.sql', import.meta.url),
+  'utf8',
+);
+
 test('family policy contract requires all enforcement fields', async () => {
   const schema = await loadContract('family-policy-v1.schema.json');
   assert.equal(schema.properties.version.const, 1);
@@ -58,4 +63,20 @@ test('device secrets, pairing codes and push tokens stay in the private schema',
   assert.match(migration, /create table private\.device_pairing_sessions/);
   assert.match(migration, /create table private\.push_tokens/);
   assert.match(migration, /revoke all on schema private from public, anon, authenticated;/);
+  assert.match(migration, /alter table private\.device_credentials enable row level security/);
+  assert.match(migration, /alter table private\.device_pairing_sessions enable row level security/);
+  assert.match(migration, /alter table private\.push_tokens enable row level security/);
+});
+
+test('family membership helpers stay private and validate the authenticated user', async () => {
+  const migration = await loadMembershipMigration();
+  assert.match(migration, /create function private\.is_family_member/);
+  assert.match(migration, /create function private\.is_family_owner/);
+  assert.match(migration, /security definer/);
+  assert.match(migration, /auth\.uid\(\)/);
+  assert.match(
+    migration,
+    /revoke execute on function private\.is_family_member\(uuid\) from public, anon, authenticated, service_role/,
+  );
+  assert.doesNotMatch(migration, /create function public\./);
 });

@@ -346,7 +346,13 @@
 - [x] 配对码摘要、设备凭证和 APNs token 放入不可从 Data API 访问的 `private` schema，孩子 Mac 不使用家长 JWT 或 service-role key。
 - [x] 增加家庭策略与设备事件 JSON Schema，明确不收集截图、键盘输入和网页正文。
 - [x] 按 Supabase PostgreSQL 最佳实践补齐所有高频查询、RLS 和外键列索引，并收紧 service-role 表权限。
-- [ ] 下一步：创建专用 TimeBoxer Supabase 项目，在开发分支执行迁移和 advisors；随后实现配对、设备同步、APNs 三个 Edge Functions。
+- [x] 在唯一组织内创建 Sydney 区域的独立 `timeboxer` 云项目；项目与 `s-nz-ledger` 使用不同数据库、API、Auth 用户和扩容额度。
+- [x] 在线部署四批数据库迁移；真实 authenticated 事务通过 RLS 创建 profile、family、owner membership 和 child 后完整清理验证数据。
+- [x] 修复 family 与 family_members 的 RLS 循环引用；内部成员判断函数位于不可暴露的 private schema，并仅授予策略执行所需的最小权限。
+- [x] Supabase Security Advisor 无 warning/error；12 张 TimeBoxer 表全部启用 RLS，私密凭证表保持默认拒绝。
+- [x] iPhone 家长端加入固定版本 Supabase Swift SDK、TimeBoxer 独立项目配置和真实邮箱注册/登录界面；官方依赖已解析并锁定。
+- [ ] 当前 Xcode 缺少 iOS Simulator runtime，需安装后完成新增家长登录界面的最终编译和真机/模拟器登录测试。
+- [ ] 下一步：实现家庭首次初始化、Mac 六位码配对、设备同步和 APNs Edge Functions。
 
 ---
 

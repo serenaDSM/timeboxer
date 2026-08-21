@@ -1,7 +1,9 @@
 # TimeBoxer cloud foundation
 
-This directory is a local, unlinked Supabase project. It is intentionally not
-connected to the existing `s-nz-ledger` project in the developer account.
+This directory belongs only to the dedicated hosted Supabase project `timeboxer`
+(`jysdafvxexnyfplehqga`) in `ap-southeast-2`. It has its own Postgres database,
+API endpoint, Auth users and scaling limits. It is not connected to and must never
+be linked to the existing `s-nz-ledger` project.
 
 ## Security model
 
@@ -18,12 +20,16 @@ connected to the existing `s-nz-ledger` project in the developer account.
 The first migration grants explicit table privileges because new Supabase projects
 no longer expose newly-created public tables to the Data API automatically.
 
-## Before linking a cloud project
+## Hosted project status
 
-1. Create a dedicated TimeBoxer Supabase project in `ap-southeast-2`.
-2. Link this directory with the pinned Supabase CLI.
-3. Apply the migration to a non-production branch first.
-4. Run database tests and both security and performance advisors.
-5. Deploy authenticated pairing, device sync and APNs Edge Functions.
+- Dedicated project created on 2026-08-22 on the Free plan.
+- Initial schema and follow-up RLS migrations applied successfully.
+- A real authenticated-role transaction created a profile, family, owner
+  membership and child through RLS, then removed all verification data.
+- All 12 TimeBoxer tables have RLS enabled. Security Advisor reports no warning or
+  error findings; the only information notices are intentional policy-free private
+  tables that default-deny client access.
+- Performance Advisor reports only expected unused-index notices on the empty
+  database. The indexes support future family, event and device queries.
 
-No migration has been applied to an online database yet.
+Next: deploy authenticated pairing, device synchronization and APNs Edge Functions.
