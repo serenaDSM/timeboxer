@@ -41,6 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        webController.show(.child)
+        return true
+    }
+
     private func connectComponents() {
         monitor.onBlockedApplication = { [weak self] application, reason, mode in
             self?.webController.sendNativeEvent(type: "application-blocked", payload: [
