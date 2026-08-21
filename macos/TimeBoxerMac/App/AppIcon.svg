@@ -1,24 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="background" x1="180" y1="120" x2="850" y2="930" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#171B22"/>
-      <stop offset="1" stop-color="#07090D"/>
+    <linearGradient id="background" x1="120" y1="80" x2="900" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14181E"/>
+      <stop offset="1" stop-color="#050609"/>
     </linearGradient>
     <linearGradient id="cube" x1="300" y1="250" x2="735" y2="790" gradientUnits="userSpaceOnUse">
       <stop stop-color="#66FF61"/>
       <stop offset="1" stop-color="#20D91A"/>
     </linearGradient>
-    <filter id="shadow" x="20" y="30" width="984" height="984" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="28" stdDeviation="32" flood-color="#000000" flood-opacity="0.42"/>
-    </filter>
     <filter id="glow" x="180" y="150" width="664" height="724" filterUnits="userSpaceOnUse">
       <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#35D532" flood-opacity="0.42"/>
     </filter>
   </defs>
-  <g filter="url(#shadow)">
-    <rect x="72" y="72" width="880" height="880" rx="198" fill="url(#background)"/>
-    <rect x="76" y="76" width="872" height="872" rx="194" fill="none" stroke="#2B313B" stroke-width="8"/>
-  </g>
+  <rect x="4" y="4" width="1016" height="1016" rx="224" fill="url(#background)"/>
   <g filter="url(#glow)" fill="none" stroke="url(#cube)" stroke-width="54" stroke-linecap="round" stroke-linejoin="round">
     <path d="M512 245 746 382v260L512 779 278 642V382L512 245Z"/>
     <path d="m289 389 223 130 223-130M512 519v260"/>
