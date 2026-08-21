@@ -67,6 +67,19 @@ final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKN
         deliverNativeEvent(type: type, payload: payload)
     }
 
+    func setFocusFullscreen(_ enabled: Bool) {
+        guard let window else { return }
+        let isFullscreen = window.styleMask.contains(.fullScreen)
+        guard enabled != isFullscreen else {
+            if enabled {
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            return
+        }
+        window.toggleFullScreen(nil)
+    }
+
     private func deliverNativeEvent(type: String, payload: [String: Any]) {
         let event: [String: Any] = ["type": type, "payload": payload]
         guard

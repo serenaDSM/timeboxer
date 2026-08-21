@@ -24,6 +24,9 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
   const alarmModeRef = useRef(null);
   const focusBreakTimeoutRef = useRef(null);
   const wakeLockRef = useRef(null);
+  const focusProtectionReadyAtRef = useRef(
+    Date.now() + (typeof window !== 'undefined' && window.__TIMEBOXER_MAC__ ? 1800 : 0),
+  );
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isIPadDevice = typeof navigator !== 'undefined' && (
     /iPad/i.test(userAgent) ||
@@ -40,7 +43,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
       if (!AudioContext) return;
       const ctx = new AudioContext();
       const master = ctx.createGain();
-      master.gain.setValueAtTime(0.7, ctx.currentTime);
+      master.gain.setValueAtTime(0.9, ctx.currentTime);
       master.connect(ctx.destination);
 
       steps.forEach(({ frequency, start, duration: stepDuration }) => {
@@ -49,7 +52,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
         oscillator.type = 'square';
         oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + start);
         gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
-        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + start + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + stepDuration);
         oscillator.connect(gain);
         gain.connect(master);
@@ -149,19 +152,21 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
   const getAlarmSteps = useCallback((mode) => (
     mode === 'warning'
       ? [
-          { frequency: 220, start: 0, duration: 0.16 },
-          { frequency: 220, start: 0.24, duration: 0.16 },
-          { frequency: 220, start: 0.48, duration: 0.3 },
+          { frequency: 880, start: 0, duration: 0.34 },
+          { frequency: 660, start: 0.4, duration: 0.34 },
+          { frequency: 1047, start: 0.8, duration: 0.42 },
+          { frequency: 784, start: 1.28, duration: 0.42 },
         ]
       : [
-          { frequency: 196, start: 0, duration: 0.18 },
-          { frequency: 196, start: 0.24, duration: 0.18 },
-          { frequency: 147, start: 0.48, duration: 0.22 },
-          { frequency: 147, start: 0.78, duration: 0.32 },
+          { frequency: 740, start: 0, duration: 0.36 },
+          { frequency: 520, start: 0.42, duration: 0.36 },
+          { frequency: 740, start: 0.84, duration: 0.5 },
         ]
   ), []);
 
-  const createAlarmLoopBuffer = useCallback((ctx, steps, loopDuration = 1.2) => {
+  const createAlarmLoopBuffer = useCallback((ctx, steps) => {
+    const finalStep = steps.at(-1);
+    const loopDuration = Math.max(1.5, finalStep ? finalStep.start + finalStep.duration + 0.18 : 1.5);
     const sampleRate = ctx.sampleRate;
     const frameCount = Math.max(1, Math.floor(sampleRate * loopDuration));
     const buffer = ctx.createBuffer(1, frameCount, sampleRate);
@@ -178,7 +183,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
         const release = Math.min(1, (start + stepDuration - time) / 0.03);
         const envelope = Math.max(0, Math.min(attack, release));
         const squareWave = Math.sin(2 * Math.PI * frequency * localTime) >= 0 ? 1 : -1;
-        sample += squareWave * 0.18 * envelope;
+        sample += squareWave * 0.82 * envelope;
       });
 
       channel[frame] = Math.max(-1, Math.min(1, sample));
@@ -188,7 +193,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
   }, []);
 
   const startContinuousAlarm = useCallback((mode = 'exit', { armed = false } = {}) => {
-    const volume = armed ? 0.0001 : 0.9;
+    const volume = armed ? 0.0001 : 1;
 
     if (alarmSourceRef.current && alarmModeRef.current === mode) {
       setAlarmVolume(volume);
@@ -204,11 +209,18 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
       const ctx = new AudioContext();
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
+      const compressor = ctx.createDynamicsCompressor();
       source.buffer = createAlarmLoopBuffer(ctx, getAlarmSteps(mode));
       source.loop = true;
       gain.gain.setValueAtTime(volume, ctx.currentTime);
+      compressor.threshold.setValueAtTime(-12, ctx.currentTime);
+      compressor.knee.setValueAtTime(4, ctx.currentTime);
+      compressor.ratio.setValueAtTime(4, ctx.currentTime);
+      compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+      compressor.release.setValueAtTime(0.18, ctx.currentTime);
       source.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(compressor);
+      compressor.connect(ctx.destination);
 
       if (ctx.state === 'suspended') {
         ctx.resume().catch(() => {});
@@ -300,6 +312,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
 
   const pauseForFocusBreak = useCallback(() => {
     if (!isEarnMode) return;
+    if (Date.now() < focusProtectionReadyAtRef.current) return;
     if (!isActive && showWarning) {
       if (!isPhoneDevice) startContinuousAlarm('warning');
       return;
@@ -312,8 +325,6 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
 
   // Security checks
   useEffect(() => {
-    if (testTimerSeconds > 0) return undefined;
-
     let focusCheckInterval = null;
     const focusBreakDelayMs = 180;
 
@@ -371,8 +382,10 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
     window.addEventListener('resize', checkWindowSize);
     focusCheckInterval = window.setInterval(checkWindowFocus, 1000);
     
-    checkWindowSize();
-    checkWindowFocus();
+    const initialFocusCheckTimeout = window.setTimeout(() => {
+      checkWindowSize();
+      checkWindowFocus();
+    }, Math.max(0, focusProtectionReadyAtRef.current - Date.now()));
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -381,6 +394,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
       window.removeEventListener('focusout', handleFocusLoss);
       window.removeEventListener('resize', checkWindowSize);
       window.clearInterval(focusCheckInterval);
+      window.clearTimeout(initialFocusCheckTimeout);
       clearPendingFocusBreak();
     };
   }, [clearPendingFocusBreak, isEarnMode, isIPadDevice, isPhoneDevice, pauseForFocusBreak, testTimerSeconds]);
@@ -522,7 +536,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
   }
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4">
+    <div data-testid="timer-screen" className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-4">
       <div className={`text-2xl font-bold mb-8 uppercase tracking-widest ${titleColor} animate-pulse`}>
         {titleText}
       </div>
@@ -559,9 +573,11 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
         </button>
       </div>
       
-      <div className="mt-8 text-white/50 text-sm h-8 text-center max-w-2xl px-4">
+      <div className="mt-8 min-h-12 text-white/50 text-sm text-center max-w-3xl px-4">
         {showWarning ? (
-          <span className="text-red-500 font-bold animate-pulse text-lg">⚠️ 警告：检测到页面切换或窗口缩小，计时已暂停！</span>
+          <span role="alert" className="inline-flex rounded-2xl border-2 border-red-500 bg-red-500/15 px-6 py-4 text-red-400 font-black animate-pulse text-xl sm:text-2xl">
+            ⚠️ FOCUS PAUSED · RETURN TO FULL SCREEN
+          </span>
         ) : isOvertime ? (
           <span className="text-[#FFD700]">Target reached! Keep going, or click the Trophy to claim today’s bonus.</span>
         ) : (

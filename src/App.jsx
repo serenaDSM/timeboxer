@@ -214,22 +214,19 @@ function App() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const isEarnTimerFullscreenReady = () => (
-    Boolean(document.fullscreenElement)
-    || (window.innerWidth >= window.screen.availWidth - 100
-      && window.innerHeight >= window.screen.availHeight - 250)
-  );
-
   const startEarn = async (task) => {
     if (earnedMinutesToday >= earnBonusCap) {
       window.alert('Today’s earnable bonus is complete. Enjoy the activities without collecting more screen time.');
       return;
     }
-    if (testTimerSeconds <= 0 && !isEarnTimerFullscreenReady()) {
+
+    if (window.__TIMEBOXER_MAC__) {
+      notifyNative('focus-fullscreen', { enabled: true });
+    } else if (!document.fullscreenElement) {
       try {
         await document.documentElement.requestFullscreen();
       } catch {
-        window.alert('Please maximise the window or allow full screen to start focus time.');
+        window.alert('Please allow full screen to start focus time.');
         return;
       }
     }
@@ -288,6 +285,11 @@ function App() {
     if (!activeTimer) return;
     if (activeTimer.mode === 'earn') {
       addMinutes(activeTimer.reward + Math.min(30, extraMinutes));
+      if (window.__TIMEBOXER_MAC__) {
+        notifyNative('focus-fullscreen', { enabled: false });
+      } else if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
     } else {
       recordSpend(duration, true);
     }
@@ -304,6 +306,11 @@ function App() {
       );
     } else if (activeTimer.mode === 'earn') {
       logEvent({ type: 'stopped', message: `${familyProfile.childName} left ${activeTimer.taskTitle} before finishing.` });
+      if (window.__TIMEBOXER_MAC__) {
+        notifyNative('focus-fullscreen', { enabled: false });
+      } else if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
     }
     setChildStatus({ kind: 'idle' });
     setActiveTimer(null);

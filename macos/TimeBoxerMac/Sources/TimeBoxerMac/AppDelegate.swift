@@ -77,6 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.applyFamilyStateUpdate(payload)
             } else if type == "policy-snapshot" {
                 self.applyPolicySnapshot(payload)
+            } else if type == "focus-fullscreen" {
+                self.webController.setFocusFullscreen(payload["enabled"] as? Bool ?? false)
             } else {
                 NSLog("TimeBoxer bridge event %@: %@", type, String(describing: payload))
             }
