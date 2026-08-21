@@ -3,17 +3,22 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let policyStore = PolicyStore()
+    private let familyStateStore = FamilyStateStore()
     private let ruleEngine = RuleEngine()
     private let loginItemManager = LoginItemManager()
     private lazy var monitor = ApplicationMonitor(policyStore: policyStore, ruleEngine: ruleEngine)
     private let shieldController = ShieldWindowController()
     private let webController = WebWindowController()
     private var statusItem: NSStatusItem?
+    private var familySyncTimer: Timer?
+    private var lastDeliveredFamilyRevision = 0
+    private var lastFamilyHeartbeatAt = Date.distantPast
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMainMenu()
         configureStatusItem()
         connectComponents()
+        startFamilyStateSync()
         monitor.start()
         webController.show(.child)
 
@@ -28,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
+        familySyncTimer?.invalidate()
+        familySyncTimer = nil
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -59,11 +66,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         webController.onBridgeMessage = { [weak self] type, payload in
             guard let self else { return }
-            if type == "policy-snapshot" {
+            if type == "family-state-request" {
+                self.sendFamilyStateSnapshot()
+            } else if type == "family-state-update" {
+                self.applyFamilyStateUpdate(payload)
+            } else if type == "policy-snapshot" {
                 self.applyPolicySnapshot(payload)
             } else {
                 NSLog("TimeBoxer bridge event %@: %@", type, String(describing: payload))
             }
+        }
+    }
+
+    private func startFamilyStateSync() {
+        lastDeliveredFamilyRevision = familyStateStore.revision
+        familySyncTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let revision = self.familyStateStore.revision
+                if revision > self.lastDeliveredFamilyRevision {
+                    self.sendFamilyStateSnapshot()
+                }
+                if Date().timeIntervalSince(self.lastFamilyHeartbeatAt) >= 5 {
+                    self.familyStateStore.touchMacHeartbeat()
+                    self.lastFamilyHeartbeatAt = Date()
+                }
+            }
+        }
+    }
+
+    private func sendFamilyStateSnapshot() {
+        guard let envelope = familyStateStore.loadEnvelope() else {
+            webController.sendNativeEvent(type: "family-state-snapshot", payload: [
+                "schemaVersion": 1,
+                "revision": 0,
+            ])
+            return
+        }
+        lastDeliveredFamilyRevision = envelope["revision"] as? Int ?? lastDeliveredFamilyRevision
+        webController.sendNativeEvent(type: "family-state-snapshot", payload: envelope)
+    }
+
+    private func applyFamilyStateUpdate(_ payload: [String: Any]) {
+        guard let state = payload["state"] as? [String: Any] else { return }
+        let sourceId = payload["sourceId"] as? String ?? "mac-web"
+        do {
+            let envelope = try familyStateStore.save(state: state, sourceId: sourceId)
+            lastDeliveredFamilyRevision = envelope["revision"] as? Int ?? lastDeliveredFamilyRevision
+            webController.sendNativeEvent(type: "family-state-snapshot", payload: envelope)
+        } catch {
+            NSLog("TimeBoxer could not save family state: %@", error.localizedDescription)
         }
     }
 

@@ -20,6 +20,7 @@ import ChildDashboard from './components/ChildDashboard.jsx';
 import ParentDashboard from './components/ParentDashboard.jsx';
 import BrandLogo from './components/BrandLogo.jsx';
 import { notifyNative } from './nativeBridge.js';
+import { useFamilySync } from './useFamilySync.js';
 
 const getInitialRole = () => {
   const queryRole = new URLSearchParams(window.location.search).get('view');
@@ -29,6 +30,7 @@ const getInitialRole = () => {
 };
 
 function App() {
+  const syncStatus = useFamilySync();
   const {
     availableMinutes,
     availableMinutesDate,
@@ -425,6 +427,7 @@ function App() {
         recentEvents={recentEvents}
         earnTasks={earnTasks}
         spendTasks={spendTasks}
+        syncStatus={syncStatus}
         onOpenChild={openChild}
         onOpenChildTab={openChildTab}
         onApplyPreset={applyPreset}

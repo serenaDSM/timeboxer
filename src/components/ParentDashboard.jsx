@@ -42,6 +42,7 @@ export default function ParentDashboard({
   recentEvents,
   earnTasks,
   spendTasks,
+  syncStatus,
   onOpenChild,
   onOpenChildTab,
   onApplyPreset,
@@ -69,6 +70,11 @@ export default function ParentDashboard({
     name: 'Custom',
     [field]: Number(value),
   });
+  const syncLabel = syncStatus === 'linked'
+    ? 'Mac child linked · one shared state'
+    : syncStatus === 'disconnected'
+      ? 'Mac child not linked'
+      : 'Connecting to Mac child…';
 
   return (
     <div className="min-h-[100dvh] bg-[#f8faf8] text-slate-950">
@@ -89,7 +95,10 @@ export default function ParentDashboard({
             <div className="text-sm font-bold text-emerald-600">Good to see you</div>
             <h1 className="mt-1 text-3xl font-black tracking-tight">{profile.childName}’s plan</h1>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Linked locally · changes sync instantly</div>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <span className={`h-2 w-2 rounded-full ${syncStatus === 'linked' ? 'bg-emerald-500' : syncStatus === 'disconnected' ? 'bg-red-500' : 'bg-amber-400'}`} />
+            {syncLabel}
+          </div>
         </div>
 
         <section className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">

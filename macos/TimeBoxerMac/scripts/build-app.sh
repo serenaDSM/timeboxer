@@ -4,7 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MAC_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$MAC_ROOT/../.." && pwd)"
-APP_ROOT="$MAC_ROOT/build/TimeBoxer.app"
+OUTPUT_APP_ROOT="$MAC_ROOT/build/TimeBoxer.app"
+STAGING_DIRECTORY="$(mktemp -d /private/tmp/timeboxer-app-build.XXXXXX)"
+trap 'rm -rf "$STAGING_DIRECTORY"' EXIT
+APP_ROOT="$STAGING_DIRECTORY/TimeBoxer.app"
 CONTENTS="$APP_ROOT/Contents"
 
 if [[ -n "${DEVELOPER_DIR:-}" ]]; then
@@ -37,7 +40,6 @@ if [[ "${TIMEBOXER_DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]]; then
 fi
 "$SWIFT_BIN" "${SWIFT_BUILD_ARGS[@]}"
 
-rm -rf "$APP_ROOT"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources/WebApp"
 cp "$MAC_ROOT/.build/release/TimeBoxerMac" "$CONTENTS/MacOS/TimeBoxerMac"
 cp "$MAC_ROOT/App/Info.plist" "$CONTENTS/Info.plist"
@@ -45,7 +47,15 @@ cp -R "$PROJECT_ROOT/dist/." "$CONTENTS/Resources/WebApp/"
 node "$SCRIPT_DIR/inline-web-assets.mjs" "$CONTENTS/Resources/WebApp"
 
 xattr -cr "$APP_ROOT"
+# iCloud/File Provider can attach these directory attributes immediately after
+# assembly. They are harmless metadata but invalidate macOS code signing.
+xattr -d com.apple.FinderInfo "$APP_ROOT" 2>/dev/null || true
+xattr -d 'com.apple.fileprovider.fpfs#P' "$APP_ROOT" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_ROOT"
 codesign --verify --deep --strict --verbose=2 "$APP_ROOT"
 
-echo "$APP_ROOT"
+rm -rf "$OUTPUT_APP_ROOT"
+mkdir -p "$(dirname "$OUTPUT_APP_ROOT")"
+ditto --norsrc --noextattr "$APP_ROOT" "$OUTPUT_APP_ROOT"
+
+echo "$OUTPUT_APP_ROOT"

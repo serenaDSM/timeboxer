@@ -12,6 +12,14 @@ The local policy is created on first launch at:
 ~/Library/Application Support/TimeBoxer/family-policy.json
 ```
 
+浏览器家长端、Mac 孩子端和原生规则共用的完整状态保存在：
+
+```text
+~/Library/Application Support/TimeBoxer/family-state.json
+```
+
+`family-policy.json` 是从完整状态派生出的原生监管快照；`family-state.json` 才是本机双端同步的权威状态。
+
 Changing `enforcementMode` to `enforce` enables graceful termination for bundle identifiers explicitly listed in `blockedBundleIdentifiers`. Use this only with a disposable test application until the full parent approval and recovery flow is implemented.
 
 ## Build and test

@@ -23,6 +23,7 @@ import {
   migrateEarnTasks,
   migrateSpendTasks,
 } from '../src/defaults.js';
+import { FAMILY_STATE_FIELDS, familyStateFingerprint, pickFamilyState } from '../src/familyState.js';
 
 test('accepts a valid earn task and normalizes its title', () => {
   assert.deepEqual(
@@ -124,4 +125,27 @@ test('enforces bedtime buffer and cooldown from actual played time', () => {
   assert.equal(isInsideBedtimeBlock({ date: new Date(2026, 7, 14, 18, 45), bedtime: '20:30', bufferMinutes: 60 }), false);
   assert.equal(shouldTriggerCooldown(19, 20), false);
   assert.equal(shouldTriggerCooldown(20, 20), true);
+});
+
+test('shares one explicit family-state contract without store actions', () => {
+  const source = {
+    availableMinutes: 5,
+    todaySpent: 10,
+    policy: { id: 'balanced' },
+    updatePolicy() {},
+    ignoredField: 'not synced',
+  };
+  const shared = pickFamilyState(source);
+
+  assert.deepEqual(shared, {
+    availableMinutes: 5,
+    todaySpent: 10,
+    policy: { id: 'balanced' },
+  });
+  assert.equal(FAMILY_STATE_FIELDS.includes('dailyBonuses'), true);
+  assert.equal(familyStateFingerprint(source), familyStateFingerprint(shared));
+  assert.equal(
+    familyStateFingerprint({ policy: { id: 'balanced', schoolLimit: 20 } }),
+    familyStateFingerprint({ policy: { schoolLimit: 20, id: 'balanced' } }),
+  );
 });

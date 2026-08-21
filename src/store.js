@@ -14,6 +14,7 @@ import {
   migrateEarnTasks,
   migrateSpendTasks,
 } from './defaults.js';
+import { pickFamilyState } from './familyState.js';
 
 const defaultProfile = {
   childName: 'Alex',
@@ -35,7 +36,7 @@ const clampMinutes = (value, maximum = PUBLIC_HEALTH_CEILING_MINUTES) => (
 );
 
 const migratePolicy = (policy = {}) => {
-  if (POLICY_PRESETS[policy.id]) return { ...POLICY_PRESETS[policy.id] };
+  if (POLICY_PRESETS[policy.id]) return { ...POLICY_PRESETS[policy.id], ...policy };
   return {
     ...DEFAULT_POLICY,
     ...policy,
@@ -49,11 +50,20 @@ const migratePersistedState = (persistedState = {}) => {
   const today = getLocalDateKey();
   const dayType = getDayType({ date: new Date(), dayOverrides: persistedState.dayOverrides || {} });
   const earnCap = getEarnBonusCap(policy, dayType);
+  const hasTodaySpend = persistedState.lastSpentDate === today;
+  const hasTodayEarn = persistedState.availableMinutesDate === today;
 
   return {
     ...persistedState,
-    availableMinutes: Math.min(earnCap, clampMinutes(persistedState.availableMinutes)),
+    availableMinutes: hasTodayEarn
+      ? Math.min(earnCap, clampMinutes(persistedState.availableMinutes))
+      : 0,
     availableMinutesDate: today,
+    todaySpent: hasTodaySpend ? clampMinutes(persistedState.todaySpent) : 0,
+    lastSpentDate: hasTodaySpend ? today : '',
+    cooldownUntil: Number(persistedState.cooldownUntil) > Date.now()
+      ? Number(persistedState.cooldownUntil)
+      : 0,
     familyProfile: { ...defaultProfile, ...(persistedState.familyProfile || {}) },
     policy,
     dayOverrides: persistedState.dayOverrides || {},
@@ -137,6 +147,8 @@ export const useStore = create(
         policy: {
           ...state.policy,
           ...updates,
+          id: 'custom',
+          name: 'Custom',
           ...(updates.schoolLimit !== undefined && { schoolLimit: clampMinutes(updates.schoolLimit) }),
           ...(updates.weekendLimit !== undefined && { weekendLimit: clampMinutes(updates.weekendLimit) }),
           ...(updates.holidayLimit !== undefined && { holidayLimit: clampMinutes(updates.holidayLimit) }),
@@ -234,6 +246,10 @@ export const useStore = create(
       }),
 
       setParentPIN: (pin) => set({ parentPIN: pin }),
+      replaceSyncedState: (incomingState) => set((state) => {
+        const normalized = migratePersistedState({ ...state, ...(incomingState || {}) });
+        return pickFamilyState(normalized);
+      }),
       completeOnboarding: ({ profile, presetId } = {}) => set((state) => ({
         hasSeenOnboarding: true,
         familyProfile: { ...state.familyProfile, ...(profile || {}) },
@@ -290,7 +306,7 @@ export const useStore = create(
     }),
     {
       name: 'kids-time-storage',
-      version: 6,
+      version: 8,
       migrate: migratePersistedState,
       merge: (persistedState, currentState) => ({
         ...currentState,

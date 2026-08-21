@@ -2,7 +2,7 @@
 
 TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子通过阅读、运动等任务赚取时间，家长通过独立的 Parent Dashboard 设置上学日、周末和假期规则，并实时查看孩子的使用状态和额外时间申请。
 
-当前版本：`v4.1.0 prototype`
+当前版本：`v4.2.0 prototype`
 
 - 线上地址：https://timeboxer-app.netlify.app/
 - 项目进展：[PROGRESS.md](./PROGRESS.md)
@@ -10,7 +10,7 @@ TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子�
 ## v4 原型已实现
 
 - 双端界面：独立的 Child View 与 PIN 保护的 Parent Dashboard。
-- 本地实时联动：同一浏览器的不同标签页通过持久化状态同步，模拟家长端与孩子端的实时效果。
+- 本机双端联动：浏览器家长端、Mac 孩子端和原生监管规则共同使用一份带版本号的家庭状态，并显示 Mac 在线心跳。
 - 轻量模板：`Strict Reset`、`Balanced`、`Collaborative`，分别提供上学日、周末和假期的基础额度与每日可赚上限。
 - 日期规则：自动识别上学日/周末，家长可以把当天切换为 School Day、Weekend 或 Holiday。
 - 今日可用时间：基础额度 + 当日任务奖励 + 家长临时加时 - 今日已使用；任务奖励不跨日滚存。
@@ -18,7 +18,7 @@ TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子�
 - 活动流：记录开始任务、开始娱乐、被规则阻止、申请和审批事件。
 - 家庭护栏：单次娱乐上限、睡前 60 分钟禁用、实际连续使用达到 20 分钟后进入休息期、公共健康上限 120 分钟。
 - 自定义：家长仍可编辑 Earn/Spend 活动、每日额度、孩子姓名、年龄和睡眠时间。
-- 家长测试工具：可直接调整时间币，并把真实分钟临时压缩为 1–300 秒的快速倒计时；关闭后恢复正式计时与防切屏规则。
+- 家长测试工具：可直接调整当日奖励，并把真实分钟临时压缩为 1–300 秒的快速倒计时；关闭后恢复正式计时与防切屏规则。
 
 ## 保留的核心能力
 
@@ -50,12 +50,20 @@ npm run build
 
 生产构建输出到 `dist/`。
 
-## 本地联动演示
+## 本机双端联动演示
 
 1. 打开孩子端：`http://localhost:5173/?view=child`
 2. 点击 `Parent` 并输入 PIN，或另开家长端：`http://localhost:5173/?view=parent`
-3. 在家长端点击 `Open linked tab` 可打开一个独立孩子标签页。
-4. 孩子申请额外时间或家长修改计划时，另一个标签页会实时更新。
+3. 保持 `/Applications/TimeBoxer.app` 运行；家长端标题旁应显示 `Mac child linked · one shared state`。
+4. 家长修改计划、奖励或测试时间后，Mac 孩子端和原生规则会更新；孩子完成任务或提出申请后，家长端会轮询更新。
+
+当前本机同步服务通过开发服务器的 `/api/family-state` 接口读写：
+
+```text
+~/Library/Application Support/TimeBoxer/family-state.json
+```
+
+状态包含统一的基础额度、当日奖励、家长加时、今日使用量、活动、申请、任务和计划字段；`revision` 只在数据变化时增加。Mac 在线状态独立保存在 `mac-heartbeat.json`，不会接触或覆盖家庭业务数据。
 
 ## 快速计时测试
 
@@ -87,13 +95,13 @@ npm run mac:test
 npm run mac:build
 ```
 
-当前开发机已安装、选择并完成 Xcode 16.4 首次初始化。原生应用已完成 Release 编译、ad-hoc 签名、安装和首次启动验证；安装位置为 `/Applications/TimeBoxer.app`。标准 `npm run mac:test` 已执行，Swift 规则测试共 4 项通过；`npm run mac:build` 也可直接完成打包。
+当前开发机已安装、选择并完成 Xcode 16.4 首次初始化。原生应用已完成 Release 编译、ad-hoc 签名、安装和首次启动验证；安装位置为 `/Applications/TimeBoxer.app`。标准 `npm run mac:test` 已执行，Swift 规则与状态测试共 5 项通过；`npm run mac:build` 也可直接完成打包。
 
 ## 当前数据与安全边界
 
-所有任务、当日奖励、统计和家长 PIN 目前都保存在当前浏览器的 LocalStorage 中。清理浏览器数据、切换浏览器或更换设备不会自动同步数据。
+浏览器仍保留 LocalStorage 作为离线缓存，但在本机开发模式下，浏览器家长端与安装版 Mac 孩子端以统一的 `family-state.json` 为同步状态。清理单端缓存后会从共享状态恢复。
 
-当前双端联动只在同一浏览器的标签页间工作，用于验证产品交互。真正跨设备的家长端/孩子端联动仍需要后端账户、家庭绑定、设备身份、服务端规则、心跳和推送通知。
+当前同步后端只运行在同一台 Mac 上，用于真实验证两种客户端的数据和原生监管规则。手机家长端在外网访问、跨设备通知和多家庭正式发布，仍需要云端账户、家庭绑定、设备身份、服务端授权和推送通知。
 
 当前 PIN 和 Web 防切屏机制用于家庭行为引导，不是不可绕过的系统级家长控制。macOS 原型已开始实现应用检测和温和退出，但独立后台 Agent、防卸载、设备心跳和远程提醒仍是后续工作。
 
@@ -118,6 +126,9 @@ src/components/ParentDashboard.jsx
 src/components/Timer.jsx    Earn/Spend 计时与防切屏逻辑
 src/components/Onboarding.jsx
 src/store.js                Zustand 持久化状态
+src/familyState.js          Web、Mac 与后端共用的家庭状态字段契约
+src/useFamilySync.js        浏览器 API 轮询与 WebKit 原生桥双向同步
+scripts/local-family-state-api.mjs 本机状态 API
 src/rules.js                可测试的业务规则
 test/rules.test.js          业务规则测试
 PROGRESS.md                 历史进展与路线图
