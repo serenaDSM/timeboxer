@@ -484,6 +484,10 @@ function App() {
         onSetTestTimerSeconds={setTestTimerSeconds}
         onSetAvailableMinutes={setAvailableMinutes}
         onSetApplicationProtection={setApplicationProtection}
+        onSendTestAlert={() => logEvent({
+          type: 'blocked',
+          message: 'Test alert: YouTube was blocked outside Play time.',
+        })}
         onReset={resetData}
       />
     );

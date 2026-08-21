@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
+  AlertTriangle,
   AppWindow,
+  Bell,
   Check,
   ChevronDown,
   ChevronRight,
@@ -18,8 +20,15 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
+  WifiOff,
   X,
 } from 'lucide-react';
+import {
+  getParentAlertEvents,
+  getParentAlertMetadata,
+  getUnreadParentAlerts,
+  pickBrowserAlert,
+} from '../parentAlerts.js';
 import {
   DAY_TYPES,
   getMaximumDailyLimit,
@@ -33,6 +42,32 @@ const formatEventTime = (timestamp) => new Intl.DateTimeFormat('en-NZ', {
   hour: 'numeric',
   minute: '2-digit',
 }).format(new Date(timestamp));
+
+const PARENT_ALERTS_ENABLED_KEY = 'timeboxer-parent-alerts-enabled';
+const PARENT_ALERTS_READ_AT_KEY = 'timeboxer-parent-alerts-read-at';
+
+const alertStyle = {
+  critical: {
+    card: 'border-red-200 bg-red-50',
+    icon: 'bg-red-100 text-red-600',
+    dot: 'bg-red-500',
+  },
+  action: {
+    card: 'border-amber-200 bg-amber-50',
+    icon: 'bg-amber-100 text-amber-600',
+    dot: 'bg-amber-500',
+  },
+  positive: {
+    card: 'border-emerald-200 bg-emerald-50',
+    icon: 'bg-emerald-100 text-emerald-600',
+    dot: 'bg-emerald-500',
+  },
+  info: {
+    card: 'border-slate-200 bg-slate-50',
+    icon: 'bg-slate-100 text-slate-500',
+    dot: 'bg-slate-400',
+  },
+};
 
 function AccordionSection({
   icon: Icon,
@@ -104,10 +139,35 @@ export default function ParentDashboard({
   onSetTestTimerSeconds,
   onSetAvailableMinutes,
   onSetApplicationProtection,
+  onSendTestAlert,
   onReset,
 }) {
   const [customSite, setCustomSite] = useState('');
   const [customSiteError, setCustomSiteError] = useState('');
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const alertEvents = useMemo(() => getParentAlertEvents(recentEvents), [recentEvents]);
+  const [alertsEnabled, setAlertsEnabled] = useState(() => (
+    window.localStorage.getItem(PARENT_ALERTS_ENABLED_KEY) === 'true'
+  ));
+  const [notificationPermission, setNotificationPermission] = useState(() => (
+    'Notification' in window ? window.Notification.permission : 'unsupported'
+  ));
+  const [alertsReadAt, setAlertsReadAt] = useState(() => {
+    const savedReadAt = Number(window.localStorage.getItem(PARENT_ALERTS_READ_AT_KEY));
+    if (savedReadAt > 0) return savedReadAt;
+    const initialReadAt = Number(alertEvents[0]?.createdAt) || Date.now();
+    window.localStorage.setItem(PARENT_ALERTS_READ_AT_KEY, String(initialReadAt));
+    return initialReadAt;
+  });
+  const lastObservedAlertId = useRef(alertEvents[0]?.id || null);
+  const mountedAt = useRef(Date.now());
+  const previousSyncStatus = useRef(syncStatus);
+  const unreadAlerts = useMemo(
+    () => getUnreadParentAlerts(alertEvents, alertsReadAt),
+    [alertEvents, alertsReadAt],
+  );
+  const unreadCount = unreadAlerts.length + (syncStatus === 'disconnected' ? 1 : 0);
+  const latestCriticalAlert = unreadAlerts.find((event) => event.type === 'blocked');
   const pendingRequest = pendingRequests.find((request) => request.status === 'pending');
   const statusText = childStatus.kind === 'playing'
     ? `Playing ${childStatus.taskTitle}`
@@ -147,6 +207,75 @@ export default function ParentDashboard({
       ? 'Mac child not linked'
       : 'Connecting to Mac child…';
 
+  const showBrowserAlert = useCallback((event) => {
+    if (!event || !alertsEnabled || notificationPermission !== 'granted') return;
+    const metadata = getParentAlertMetadata(event);
+    try {
+      new window.Notification(metadata.browserTitle, {
+        body: event.message,
+        tag: event.id,
+        silent: metadata.level === 'info' || metadata.level === 'positive',
+      });
+      if ((metadata.level === 'critical' || metadata.level === 'action') && navigator.vibrate) {
+        navigator.vibrate(metadata.level === 'critical' ? [250, 120, 250] : [180, 100, 180]);
+      }
+    } catch {
+      // The in-app alert remains available when a browser blocks system notifications.
+    }
+  }, [alertsEnabled, notificationPermission]);
+
+  useEffect(() => {
+    const newestAlertId = alertEvents[0]?.id || null;
+    if (!newestAlertId || newestAlertId === lastObservedAlertId.current) return;
+    const previousIndex = alertEvents.findIndex((event) => event.id === lastObservedAlertId.current);
+    const newlyArrived = previousIndex > 0 ? alertEvents.slice(0, previousIndex) : [alertEvents[0]];
+    lastObservedAlertId.current = newestAlertId;
+    const browserAlert = pickBrowserAlert(
+      newlyArrived.filter((event) => Number(event.createdAt) >= mountedAt.current - 1_500),
+    );
+    showBrowserAlert(browserAlert);
+  }, [alertEvents, showBrowserAlert]);
+
+  useEffect(() => {
+    const wasLinked = previousSyncStatus.current === 'linked';
+    previousSyncStatus.current = syncStatus;
+    if (!wasLinked || syncStatus !== 'disconnected') return;
+    showBrowserAlert({
+      id: `mac-offline-${Date.now()}`,
+      type: 'offline',
+      message: `${profile.childName}’s Mac is no longer reporting to the parent app.`,
+    });
+  }, [profile.childName, showBrowserAlert, syncStatus]);
+
+  const enableBrowserAlerts = async () => {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+    const permission = await window.Notification.requestPermission();
+    setNotificationPermission(permission);
+    const enabled = permission === 'granted';
+    setAlertsEnabled(enabled);
+    window.localStorage.setItem(PARENT_ALERTS_ENABLED_KEY, String(enabled));
+    if (enabled) {
+      new window.Notification('TimeBoxer alerts are on', {
+        body: `This browser can now show ${profile.childName}’s requests and blocked attempts while the page is running.`,
+        tag: 'timeboxer-alerts-enabled',
+      });
+    }
+  };
+
+  const disableBrowserAlerts = () => {
+    setAlertsEnabled(false);
+    window.localStorage.setItem(PARENT_ALERTS_ENABLED_KEY, 'false');
+  };
+
+  const markAllAlertsRead = () => {
+    const readAt = Math.max(Date.now(), Number(alertEvents[0]?.createdAt) || 0);
+    setAlertsReadAt(readAt);
+    window.localStorage.setItem(PARENT_ALERTS_READ_AT_KEY, String(readAt));
+  };
+
   return (
     <div className="min-h-[100dvh] bg-slate-200/70 text-slate-950">
       <div className="mx-auto min-h-[100dvh] w-full max-w-[430px] bg-[#f8faf8] shadow-2xl shadow-slate-900/10">
@@ -154,6 +283,20 @@ export default function ParentDashboard({
         <div className="flex items-center justify-between px-4 py-4">
           <div><BrandLogo compact /><div className="mt-1 pl-11 text-[11px] text-slate-400">Parent app</div></div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAlertsOpen(true)}
+              className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 hover:border-emerald-300 hover:text-emerald-700"
+              title="Parent alerts"
+              aria-label={`Parent alerts${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white ring-2 ring-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
             <button onClick={onChangePIN} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 hover:border-emerald-300 hover:text-emerald-700" title="Change PIN"><Settings size={18} /></button>
             <button onClick={onOpenChild} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 hover:border-emerald-300 hover:text-emerald-700" title="Child preview"><Smartphone size={18} /></button>
           </div>
@@ -173,6 +316,33 @@ export default function ParentDashboard({
         </div>
 
         <section className="order-2 grid gap-4">
+          {syncStatus === 'disconnected' && (
+            <div className="flex items-start gap-3 rounded-[24px] border border-red-200 bg-red-50 p-4 text-red-950 shadow-sm">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600"><WifiOff size={21} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-black uppercase tracking-[0.14em] text-red-600">Connection alert</div>
+                <div className="mt-1 font-black">{profile.childName}’s Mac is offline</div>
+                <div className="mt-1 text-sm leading-relaxed text-red-700/70">New activity cannot reach this parent screen until the Mac reconnects.</div>
+              </div>
+            </div>
+          )}
+
+          {latestCriticalAlert && (
+            <div className="rounded-[24px] border border-red-200 bg-red-50 p-4 text-red-950 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600"><AlertTriangle size={21} /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-red-600">Blocked attempt</div>
+                  <div className="mt-1 text-sm font-bold leading-relaxed">{latestCriticalAlert.message}</div>
+                  <div className="mt-1 text-xs text-red-700/60">{formatEventTime(latestCriticalAlert.createdAt)}</div>
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <button type="button" onClick={markAllAlertsRead} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-black text-white">Acknowledge</button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
@@ -312,6 +482,9 @@ export default function ParentDashboard({
                 ))}
               </div>
             </div>
+            <button type="button" onClick={onSendTestAlert} className="flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700">
+              <AlertTriangle size={17} /> Send test blocked alert
+            </button>
           </div>
         </AccordionSection>
 
@@ -533,6 +706,89 @@ export default function ParentDashboard({
           <button onClick={onReset} className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-red-500"><RotateCcw size={16} /> Reset time data</button>
         </div>
       </main>
+
+      {alertsOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-sm sm:p-4">
+          <button type="button" aria-label="Close parent alerts" onClick={() => setAlertsOpen(false)} className="absolute inset-0" />
+          <section role="dialog" aria-modal="true" aria-labelledby="parent-alerts-title" className="relative z-10 max-h-[88dvh] w-full max-w-[430px] overflow-y-auto rounded-t-[30px] bg-[#f8faf8] shadow-2xl sm:rounded-[30px]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-5 py-4 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Bell size={20} /></span>
+                <div>
+                  <h2 id="parent-alerts-title" className="text-lg font-black">Parent alerts</h2>
+                  <div className="text-xs text-slate-400">{unreadCount > 0 ? `${unreadCount} need attention` : 'You’re up to date'}</div>
+                </div>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setAlertsOpen(false)} className="rounded-xl bg-slate-100 p-2 text-slate-500"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-4 p-4">
+              <div className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${alertsEnabled && notificationPermission === 'granted' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}><Bell size={19} /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-black">Browser alerts</div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">Shows requests and blocked attempts while this parent page is running, including supported background tabs.</p>
+                  </div>
+                </div>
+                {notificationPermission === 'unsupported' ? (
+                  <div className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold leading-relaxed text-amber-700">This browser cannot show system alerts yet. In-app alerts still work.</div>
+                ) : notificationPermission === 'denied' ? (
+                  <div className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-bold leading-relaxed text-red-700">Notifications are blocked in this browser’s settings. In-app alerts still work.</div>
+                ) : alertsEnabled && notificationPermission === 'granted' ? (
+                  <div className="mt-3 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5">
+                    <span className="text-xs font-black text-emerald-700">Alerts enabled</span>
+                    <button type="button" onClick={disableBrowserAlerts} className="text-xs font-black text-slate-500">Turn off</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={enableBrowserAlerts} className="mt-3 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Enable browser alerts</button>
+                )}
+                <p className="mt-3 text-[11px] leading-relaxed text-slate-400">Notifications after the app is fully closed will be added with the iPhone app and cloud push service.</p>
+              </div>
+
+              {syncStatus === 'disconnected' && (
+                <div className="flex items-start gap-3 rounded-[22px] border border-red-200 bg-red-50 p-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-600"><WifiOff size={19} /></span>
+                  <div><div className="font-black text-red-950">Mac child offline</div><div className="mt-1 text-xs leading-relaxed text-red-700/70">Check that TimeBoxer is running on {profile.childName}’s Mac.</div></div>
+                </div>
+              )}
+
+              <div className="flex items-end justify-between px-1">
+                <div><div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">Activity alerts</div><div className="mt-1 text-sm text-slate-400">Newest first</div></div>
+                {unreadAlerts.length > 0 && <button type="button" onClick={markAllAlertsRead} className="text-xs font-black text-emerald-700">Mark all read</button>}
+              </div>
+
+              <div className="space-y-2">
+                {alertEvents.length === 0 && (
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-6 text-center text-sm text-slate-400">Requests and important child activity will appear here.</div>
+                )}
+                {alertEvents.slice(0, 12).map((event) => {
+                  const metadata = getParentAlertMetadata(event);
+                  const styles = alertStyle[metadata.level] || alertStyle.info;
+                  const isUnread = Number(event.createdAt) > alertsReadAt;
+                  return (
+                    <div key={event.id} className={`rounded-[22px] border p-4 ${styles.card}`}>
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${isUnread ? styles.dot : 'bg-slate-300'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2"><div className="text-sm font-black">{metadata.title}</div><div className="shrink-0 text-[11px] text-slate-400">{formatEventTime(event.createdAt)}</div></div>
+                          <div className="mt-1 text-sm font-semibold leading-relaxed text-slate-600">{event.message}</div>
+                          {event.type === 'request' && pendingRequest && (
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <button type="button" onClick={() => onResolveRequest(pendingRequest.id, false)} className="rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-black text-slate-600">Decline</button>
+                              <button type="button" onClick={() => onResolveRequest(pendingRequest.id, true)} className="rounded-xl bg-[#35d532] py-2.5 text-xs font-black text-slate-950">Approve +{pendingRequest.minutes}</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
       </div>
     </div>
   );
