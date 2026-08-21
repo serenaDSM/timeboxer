@@ -27,6 +27,7 @@ struct FamilyPolicy: Codable, Equatable, Sendable {
     var usedMinutesToday: Int
     var bonusMinutesToday: Int
     var dayOverride: TimeBoxerDayType?
+    var activeEntertainmentUntil: Date?
     var blockedBundleIdentifiers: Set<String>
     var enforcementMode: EnforcementMode
 
@@ -38,22 +39,25 @@ struct FamilyPolicy: Codable, Equatable, Sendable {
         usedMinutesToday: 0,
         bonusMinutesToday: 0,
         dayOverride: nil,
+        activeEntertainmentUntil: nil,
         blockedBundleIdentifiers: [
             "com.valvesoftware.steam",
             "com.roblox.Roblox",
             "com.mojang.minecraftlauncher",
         ],
-        enforcementMode: .observe
+        enforcementMode: .enforce
     )
 }
 
 enum BlockReason: Equatable, Sendable {
     case bedtime
+    case outsideApprovedSession
     case dailyLimitReached
 
     var title: String {
         switch self {
         case .bedtime: "Entertainment is finished for today"
+        case .outsideApprovedSession: "Start Play in TimeBoxer first"
         case .dailyLimitReached: "Today’s entertainment time is used up"
         }
     }
@@ -61,6 +65,7 @@ enum BlockReason: Equatable, Sendable {
     var detail: String {
         switch self {
         case .bedtime: "Your family plan stops entertainment one hour before bedtime."
+        case .outsideApprovedSession: "Entertainment stays closed until an approved Play timer is running."
         case .dailyLimitReached: "Earn more time or ask a parent for a one-day exception."
         }
     }

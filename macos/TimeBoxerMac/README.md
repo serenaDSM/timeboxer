@@ -2,9 +2,9 @@
 
 This directory contains the first native macOS enforcement prototype. It keeps the React child/parent UI and adds an AppKit host, application monitoring, a full-screen shield, and a JavaScript-to-Swift message bridge.
 
-## Safety boundary
+## Enforcement boundary
 
-The default policy is `observe`. In this mode the monitor logs a blocked entertainment app but does not terminate it or show the shield. The prototype never force-terminates applications.
+The default policy is `enforce`. A configured entertainment application is allowed only while a Play timer has issued a non-expired native permission. Otherwise TimeBoxer hides it, requests a graceful quit, shows the shield, and records a family event. The prototype never force-terminates applications.
 
 The local policy is created on first launch at:
 
@@ -20,7 +20,9 @@ The local policy is created on first launch at:
 
 `family-policy.json` 是从完整状态派生出的原生监管快照；`family-state.json` 才是本机双端同步的权威状态。
 
-Changing `enforcementMode` to `enforce` enables graceful termination for bundle identifiers explicitly listed in `blockedBundleIdentifiers`. Use this only with a disposable test application until the full parent approval and recovery flow is implemented.
+TimeBoxer registers itself to start at login. Turning that setting off or quitting the app requires the shared parent PIN. Force Quit and administrator-level removal are not yet prevented; production-grade tamper resistance requires a privileged helper or Apple system parental-control capabilities.
+
+The current monitor identifies native applications through the family Bundle ID list and the macOS `public.app-category.games` category. It cannot distinguish YouTube or a web game from homework inside the same browser; URL-level control requires a browser extension, Network Extension, or Apple Family Controls.
 
 ## Build and test
 
@@ -45,7 +47,7 @@ xcodebuild -license
 xcodebuild -version
 ```
 
-The locally verified app is installed at `/Applications/TimeBoxer.app`. Four native rule-engine XCTest cases pass. Local builds remain in safe `observe` mode unless the policy is explicitly changed.
+The locally verified app is installed at `/Applications/TimeBoxer.app`. Eight native rule/state XCTest cases pass.
 
 ## Safe shield demo
 
@@ -54,7 +56,7 @@ The menu bar item includes `Show Demo Shield`. It displays the shield without mo
 ## Next native milestones
 
 - Replace the local JSON policy with authenticated family/device sync.
-- Register an `SMAppService` login item after the Xcode project is created.
-- Add a heartbeat and tamper/offline events.
+- Move monitoring into a tamper-resistant privileged background helper.
+- Send heartbeat, block and tamper/offline events to the remote parent service.
 - Add browser extensions first, then evaluate a Network Extension content filter.
 - Add Developer ID signing and notarized distribution.

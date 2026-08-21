@@ -49,7 +49,7 @@ final class ApplicationMonitor: NSObject {
             object: nil
         )
         monitorTimer = Timer.scheduledTimer(
-            timeInterval: 5,
+            timeInterval: 1,
             target: self,
             selector: #selector(checkFrontmostApplication),
             userInfo: nil,
@@ -87,7 +87,7 @@ final class ApplicationMonitor: NSObject {
         guard
             let bundleIdentifier = application.bundleIdentifier,
             !protectedBundleIdentifiers.contains(bundleIdentifier),
-            policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier)
+            isManagedEntertainmentApp(application, bundleIdentifier: bundleIdentifier)
         else { return }
 
         let now = Date()
@@ -102,6 +102,14 @@ final class ApplicationMonitor: NSObject {
         }
 
         let mode = policyStore.policy.enforcementMode
+
+        // Enforcement is never throttled. A child reopening the same game must
+        // be stopped again even when the parent notification is deduplicated.
+        if mode == .enforce {
+            _ = application.hide()
+            _ = application.terminate()
+        }
+
         if let lastReport = lastReports[bundleIdentifier],
            lastReport.reason == reason,
            lastReport.mode == mode,
@@ -120,10 +128,22 @@ final class ApplicationMonitor: NSObject {
 
         onBlockedApplication?(application, reason, mode)
 
-        // Safety boundary: observe is the default. Enforcement only requests a
-        // graceful quit and never force-terminates an app in this prototype.
-        if mode == .enforce {
-            _ = application.terminate()
+        // Enforcement requests a graceful quit and never force-terminates an
+        // app in this prototype. The one-second check repeats if it refuses.
+    }
+
+    private func isManagedEntertainmentApp(
+        _ application: NSRunningApplication,
+        bundleIdentifier: String
+    ) -> Bool {
+        if policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier) {
+            return true
         }
+        guard
+            let bundleURL = application.bundleURL,
+            let bundle = Bundle(url: bundleURL),
+            let category = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String
+        else { return false }
+        return category == "public.app-category.games"
     }
 }

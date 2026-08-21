@@ -29,4 +29,18 @@ final class FamilyStateStoreTests: XCTestCase {
         XCTAssertEqual(savedState?["availableMinutes"] as? Int, 5)
         XCTAssertEqual(savedState?["todaySpent"] as? Int, 10)
     }
+
+    func testReadsParentPINFromSharedFamilyState() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("timeboxer-parent-pin-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let store = FamilyStateStore(directoryURL: directory)
+        _ = try store.save(
+            state: ["availableMinutes": 25, "parentPIN": "2468"],
+            sourceId: "parent-test"
+        )
+
+        XCTAssertEqual(store.parentPIN, "2468")
+    }
 }

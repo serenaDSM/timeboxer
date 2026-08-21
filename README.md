@@ -2,7 +2,7 @@
 
 TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子通过阅读、运动等任务赚取时间，家长通过独立的 Parent Dashboard 设置上学日、周末和假期规则，并实时查看孩子的使用状态和额外时间申请。
 
-当前版本：`v4.2.0 prototype`
+当前版本：`v4.3.0 prototype`
 
 - 线上地址：https://timeboxer-app.netlify.app/
 - 项目进展：[PROGRESS.md](./PROGRESS.md)
@@ -19,6 +19,7 @@ TimeBoxer 是一款面向家庭的轻量儿童屏幕时间管理应用。孩子�
 - 家庭护栏：单次娱乐上限、睡前 60 分钟禁用、实际连续使用达到 20 分钟后进入休息期、公共健康上限 120 分钟。
 - 自定义：家长仍可编辑 Earn/Spend 活动、每日额度、孩子姓名、年龄和睡眠时间。
 - 家长测试工具：可直接调整当日奖励，并把真实分钟临时压缩为 1–300 秒的快速倒计时；关闭后恢复正式计时与防切屏规则。
+- 默认关闭娱乐：Earn 是否完成不再决定监管状态；只有孩子在 TimeBoxer 点击 Play 后，受管娱乐 App 才获得一段有明确截止时间的临时通行证。除家庭列表外，系统分类为 Games 的 Mac App 也会自动纳入。
 
 ## 保留的核心能力
 
@@ -71,7 +72,7 @@ npm run build
 2. 在 `Parent-only testing tools` 中直接设置 `Earned bonus today`。
 3. 点击 `10 sec`、`30 sec`、`60 sec`，或在 `Countdown length` 输入 1–300 秒。
 4. 返回 Child View 后启动任意 Earn/Play 活动；界面会标明测试秒数对应的真实任务分钟。
-5. 测试结束后点击 `Real time`，恢复正式倒计时、全屏和防切屏要求。
+5. 测试结束后点击 `Real time`，恢复正式分钟倒计时；全屏和防切屏在测试与正式模式中都会生效。
 
 测试模式只缩短等待时间。任务奖励、娱乐使用量、每日额度与护眼休息仍按原任务分钟结算。
 
@@ -82,10 +83,9 @@ npm run build
 - AppKit + WKWebView 外壳，可加载当前 React 生产资源。
 - JavaScript → Swift 事件桥和家庭规则快照同步。
 - `NSWorkspace` 应用启动、切换和前台应用定时检测。
-- 默认 `observe` 安全模式，不会关闭任何程序。
-- `enforce` 原型仅对明确配置的 Bundle ID 请求正常退出，不会强制杀进程。
+- 默认 `enforce` 家长控制模式；没有有效 Play 通行证时，会隐藏并请求正常退出明确配置的娱乐 App，但不会强制杀进程。
 - 全屏 Shield 保留 Earn、Ask Parent 和 Return to Homework。
-- 家长主动开启的 `SMAppService` Start at Login 入口。
+- 使用 `SMAppService` 自动注册随登录启动；关闭开机启动或退出 TimeBoxer 需要家长 PIN。
 - 本地 `.app` 组装、相对 Web 资源和 ad-hoc 签名脚本。
 
 详细说明：[macos/TimeBoxerMac/README.md](./macos/TimeBoxerMac/README.md)
@@ -95,7 +95,7 @@ npm run mac:test
 npm run mac:build
 ```
 
-当前开发机已安装、选择并完成 Xcode 16.4 首次初始化。原生应用已完成 Release 编译、ad-hoc 签名、安装和首次启动验证；安装位置为 `/Applications/TimeBoxer.app`。标准 `npm run mac:test` 已执行，Swift 规则与状态测试共 5 项通过；`npm run mac:build` 也可直接完成打包。
+当前开发机已安装、选择并完成 Xcode 16.4 首次初始化。原生应用已完成 Release 编译、ad-hoc 签名、安装和首次启动验证；安装位置为 `/Applications/TimeBoxer.app`。标准 `npm run mac:test` 已执行，Swift 规则与状态测试共 8 项通过；`npm run mac:build` 也可直接完成打包。
 
 ## 当前数据与安全边界
 
@@ -103,7 +103,7 @@ npm run mac:build
 
 当前同步后端只运行在同一台 Mac 上，用于真实验证两种客户端的数据和原生监管规则。手机家长端在外网访问、跨设备通知和多家庭正式发布，仍需要云端账户、家庭绑定、设备身份、服务端授权和推送通知。
 
-当前 PIN 和 Web 防切屏机制用于家庭行为引导，不是不可绕过的系统级家长控制。macOS 原型已开始实现应用检测和温和退出，但独立后台 Agent、防卸载、设备心跳和远程提醒仍是后续工作。
+当前 PIN 和 Web 防切屏机制仍不是不可绕过的系统级家长控制。macOS 原型已实现受管 App 默认关闭、Play 限时放行、登录启动和温和退出；Force Quit、防卸载、独立特权后台 Agent、网址级识别和远程手机提醒仍是后续工作。浏览器中的 YouTube、网页游戏等无法仅凭前台应用 Bundle ID 区分，后续需要浏览器扩展、Network Extension 或 Apple Family Controls。
 
 ## 默认设置
 

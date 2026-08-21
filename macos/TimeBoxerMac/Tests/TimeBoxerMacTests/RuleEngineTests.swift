@@ -30,6 +30,7 @@ final class RuleEngineTests: XCTestCase {
 
     func testBlocksWhenDailyLimitIsUsed() {
         var policy = FamilyPolicy.safeDefault
+        policy.activeEntertainmentUntil = makeDate(year: 2026, month: 8, day: 14, hour: 13)
         policy.usedMinutesToday = 20
         let date = makeDate(year: 2026, month: 8, day: 14, hour: 12)
 
@@ -37,7 +38,8 @@ final class RuleEngineTests: XCTestCase {
     }
 
     func testBlocksOneHourBeforeBedtimeAndOvernight() {
-        let policy = FamilyPolicy.safeDefault
+        var policy = FamilyPolicy.safeDefault
+        policy.activeEntertainmentUntil = makeDate(year: 2026, month: 8, day: 15, hour: 2)
         let beforeCutoff = makeDate(year: 2026, month: 8, day: 14, hour: 19, minute: 29)
         let afterCutoff = makeDate(year: 2026, month: 8, day: 14, hour: 19, minute: 30)
         let overnight = makeDate(year: 2026, month: 8, day: 15, hour: 1)
@@ -45,6 +47,32 @@ final class RuleEngineTests: XCTestCase {
         XCTAssertEqual(engine.decision(for: policy, date: beforeCutoff, calendar: calendar), .allowed)
         XCTAssertEqual(engine.decision(for: policy, date: afterCutoff, calendar: calendar), .blocked(.bedtime))
         XCTAssertEqual(engine.decision(for: policy, date: overnight, calendar: calendar), .blocked(.bedtime))
+    }
+
+    func testBlocksEntertainmentUntilPlayStarts() {
+        let policy = FamilyPolicy.safeDefault
+        let date = makeDate(year: 2026, month: 8, day: 14, hour: 12)
+
+        XCTAssertEqual(
+            engine.decision(for: policy, date: date, calendar: calendar),
+            .blocked(.outsideApprovedSession)
+        )
+    }
+
+    func testAllowsEntertainmentOnlyInsideApprovedPlaySession() {
+        var policy = FamilyPolicy.safeDefault
+        let date = makeDate(year: 2026, month: 8, day: 14, hour: 12)
+        policy.activeEntertainmentUntil = makeDate(year: 2026, month: 8, day: 14, hour: 12, minute: 20)
+
+        XCTAssertEqual(engine.decision(for: policy, date: date, calendar: calendar), .allowed)
+        XCTAssertEqual(
+            engine.decision(
+                for: policy,
+                date: makeDate(year: 2026, month: 8, day: 14, hour: 12, minute: 20),
+                calendar: calendar
+            ),
+            .blocked(.outsideApprovedSession)
+        )
     }
 
     private func makeDate(

@@ -34,6 +34,11 @@ final class FamilyStateStore {
         loadEnvelope()?["revision"] as? Int ?? 0
     }
 
+    var parentPIN: String? {
+        let state = loadEnvelope()?["state"] as? [String: Any]
+        return state?["parentPIN"] as? String
+    }
+
     @discardableResult
     func save(state: [String: Any], sourceId: String) throws -> [String: Any] {
         guard JSONSerialization.isValidJSONObject(state) else {

@@ -163,6 +163,7 @@ function App() {
       dayOverride: dayOverrides[todayKey] || null,
       usedMinutesToday: actualTodaySpent,
       bonusMinutesToday: earnedMinutesToday + parentBonusToday,
+      enforcementMode: 'enforce',
     });
   }, [
     actualTodaySpent,
@@ -270,15 +271,22 @@ function App() {
       return;
     }
 
+    const countdownSeconds = testTimerSeconds > 0 ? testTimerSeconds : duration * 60;
+    const expectedEndAt = Date.now() + countdownSeconds * 1000;
     setActiveTimer({ mode: 'spend', duration, taskTitle: task.title });
     setChildStatus({
       kind: 'playing',
       taskTitle: task.title,
       startedAt: Date.now(),
-      expectedEndAt: Date.now() + (testTimerSeconds > 0 ? testTimerSeconds : duration * 60) * 1000,
+      expectedEndAt,
     });
     logEvent({ type: 'started', message: `${familyProfile.childName} started ${task.title} for ${duration} minutes.` });
-    notifyNative('timer-started', { mode: 'spend', taskTitle: task.title, duration });
+    notifyNative('play-session-started', {
+      taskTitle: task.title,
+      duration,
+      endsAt: expectedEndAt,
+      quickTest: testTimerSeconds > 0,
+    });
   };
 
   const handleTimerComplete = useCallback((duration, extraMinutes = 0) => {
@@ -291,6 +299,7 @@ function App() {
         document.exitFullscreen().catch(() => {});
       }
     } else {
+      notifyNative('play-session-ended', { reason: 'completed' });
       recordSpend(duration, true);
     }
     setChildStatus({ kind: 'idle' });
@@ -299,6 +308,9 @@ function App() {
 
   const handleTimerCancel = useCallback((playedMinutes = null) => {
     if (!activeTimer) return;
+    if (activeTimer.mode === 'spend') {
+      notifyNative('play-session-ended', { reason: 'stopped' });
+    }
     if (activeTimer.mode === 'spend' && playedMinutes !== null && playedMinutes > 0) {
       recordSpend(
         playedMinutes,
@@ -315,6 +327,13 @@ function App() {
     setChildStatus({ kind: 'idle' });
     setActiveTimer(null);
   }, [activeTimer, familyProfile.childName, logEvent, policy.cooldownTriggerMinutes, recordSpend, setChildStatus]);
+
+  useEffect(() => {
+    if (activeTimer?.mode !== 'spend') return undefined;
+    const revokePlaySession = () => notifyNative('play-session-ended', { reason: 'page-closed' });
+    window.addEventListener('pagehide', revokePlaySession);
+    return () => window.removeEventListener('pagehide', revokePlaySession);
+  }, [activeTimer?.mode]);
 
   const promptTask = (task, type) => {
     const title = window.prompt('Activity name:', task?.title || '');

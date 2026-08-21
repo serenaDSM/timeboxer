@@ -27,6 +27,9 @@ struct RuleEngine: Sendable {
         if isInsideBedtimeBlock(policy: policy, date: date, calendar: calendar) {
             return .blocked(.bedtime)
         }
+        if policy.activeEntertainmentUntil.map({ $0 <= date }) ?? true {
+            return .blocked(.outsideApprovedSession)
+        }
         if remainingMinutes(for: policy, date: date, calendar: calendar) <= 0 {
             return .blocked(.dailyLimitReached)
         }

@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureMainMenu()
         configureStatusItem()
         connectComponents()
+        enableLoginProtection()
         startFamilyStateSync()
         monitor.start()
         webController.show(.child)
@@ -79,6 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.applyPolicySnapshot(payload)
             } else if type == "focus-fullscreen" {
                 self.webController.setFocusFullscreen(payload["enabled"] as? Bool ?? false)
+            } else if type == "play-session-started" {
+                self.startPlaySession(payload)
+            } else if type == "play-session-ended" {
+                self.endPlaySession()
             } else {
                 NSLog("TimeBoxer bridge event %@: %@", type, String(describing: payload))
             }
@@ -134,7 +139,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let applicationMenu = NSMenu()
         applicationMenu.addItem(withTitle: "About TimeBoxer", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         applicationMenu.addItem(.separator())
-        applicationMenu.addItem(withTitle: "Quit TimeBoxer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit TimeBoxer…", action: #selector(requestQuit), keyEquivalent: "q")
+        quitItem.target = self
+        applicationMenu.addItem(quitItem)
         applicationItem.submenu = applicationMenu
         NSApp.mainMenu = mainMenu
     }
@@ -154,8 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         modeItem.isEnabled = false
         menu.addItem(modeItem)
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quitItem.target = NSApp
+        let quitItem = makeStatusMenuItem("Quit (Parent PIN)…", action: #selector(requestQuit))
         menu.addItem(quitItem)
         item.menu = menu
         statusItem = item
@@ -180,6 +186,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleLoginItem() {
+        guard confirmParentPIN(
+            title: "Change startup protection?",
+            message: "A parent PIN is required to change whether TimeBoxer starts at login."
+        ) else { return }
         do {
             try loginItemManager.toggle()
             statusItem?.menu?.items.first(where: {
@@ -191,6 +201,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }
+    }
+
+    @objc private func requestQuit() {
+        NSApp.terminate(nil)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        confirmParentPIN(
+            title: "Quit TimeBoxer protection?",
+            message: "Games will no longer be monitored until TimeBoxer starts again."
+        ) ? .terminateNow : .terminateCancel
+    }
+
+    private func enableLoginProtection() {
+        do {
+            try loginItemManager.ensureEnabled()
+            NSLog(
+                "TimeBoxer login protection status: %@",
+                loginItemManager.isEnabled ? "enabled" : "not enabled"
+            )
+        } catch {
+            NSLog("TimeBoxer could not enable login protection: %@", error.localizedDescription)
+        }
+    }
+
+    private func confirmParentPIN(title: String, message: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Confirm")
+        alert.addButton(withTitle: "Cancel")
+
+        let pinField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 28))
+        pinField.placeholderString = "Parent PIN"
+        alert.accessoryView = pinField
+        alert.window.initialFirstResponder = pinField
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        let expectedPIN = familyStateStore.parentPIN ?? "1234"
+        guard pinField.stringValue == expectedPIN else {
+            NSSound.beep()
+            return false
+        }
+        return true
     }
 
     private var loginItemTitle: String {
@@ -217,6 +272,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.limits.holiday = payload["holidayLimit"] as? Int ?? policy.limits.holiday
         policy.usedMinutesToday = payload["usedMinutesToday"] as? Int ?? policy.usedMinutesToday
         policy.bonusMinutesToday = payload["bonusMinutesToday"] as? Int ?? policy.bonusMinutesToday
+        policy.enforcementMode = .enforce
+        policy.blockedBundleIdentifiers.formUnion(FamilyPolicy.safeDefault.blockedBundleIdentifiers)
         if let rawDayType = payload["dayOverride"] as? String {
             policy.dayOverride = TimeBoxerDayType(rawValue: rawDayType)
         } else {
@@ -227,6 +284,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try policyStore.save(policy)
         } catch {
             NSLog("TimeBoxer could not save web policy snapshot: %@", error.localizedDescription)
+        }
+    }
+
+    private func startPlaySession(_ payload: [String: Any]) {
+        let now = Date()
+        let requestedMilliseconds = (payload["endsAt"] as? NSNumber)?.doubleValue ?? 0
+        let requestedEnd = Date(timeIntervalSince1970: requestedMilliseconds / 1_000)
+        let maximumEnd = now.addingTimeInterval(60 * 60)
+
+        var policy = policyStore.policy
+        policy.activeEntertainmentUntil = requestedEnd > now ? min(requestedEnd, maximumEnd) : nil
+        policy.enforcementMode = .enforce
+        do {
+            try policyStore.save(policy)
+        } catch {
+            NSLog("TimeBoxer could not start Play permission: %@", error.localizedDescription)
+        }
+    }
+
+    private func endPlaySession() {
+        var policy = policyStore.policy
+        policy.activeEntertainmentUntil = nil
+        do {
+            try policyStore.save(policy)
+        } catch {
+            NSLog("TimeBoxer could not end Play permission: %@", error.localizedDescription)
         }
     }
 }

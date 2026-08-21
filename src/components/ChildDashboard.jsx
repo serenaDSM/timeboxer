@@ -7,6 +7,7 @@ import {
   LockKeyhole,
   Moon,
   Settings,
+  ShieldCheck,
   Sparkles,
   TimerReset,
   Tv,
@@ -114,7 +115,14 @@ export default function ChildDashboard({
           </section>
 
           <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-5"><div className="text-xs font-black uppercase tracking-[0.2em] text-violet-500">Play</div><h2 className="mt-1 text-2xl font-black tracking-tight">Use your time</h2><div className="mt-1 text-sm text-slate-400">Maximum {policy.maxSessionMinutes} min at once</div></div>
+            <div className="mb-5">
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-500">Play</div>
+              <h2 className="mt-1 text-2xl font-black tracking-tight">Use your time</h2>
+              <div className="mt-1 text-sm text-slate-400">Maximum {policy.maxSessionMinutes} min at once</div>
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                <ShieldCheck size={16} /> Entertainment apps unlock only while a Play timer is running.
+              </div>
+            </div>
             <div className="space-y-3">
               {spendTasks.map((task) => {
                 const Icon = ICONS[task.icon] || Gamepad2;
