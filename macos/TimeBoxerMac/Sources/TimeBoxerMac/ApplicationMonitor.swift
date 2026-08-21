@@ -1,5 +1,12 @@
 import AppKit
 
+enum EntertainmentClassification {
+    static func isGameCategory(_ category: String) -> Bool {
+        category == "public.app-category.games"
+            || (category.hasPrefix("public.app-category.") && category.hasSuffix("-games"))
+    }
+}
+
 @MainActor
 final class ApplicationMonitor: NSObject {
     typealias BlockHandler = (NSRunningApplication, BlockReason, EnforcementMode) -> Void
@@ -17,7 +24,10 @@ final class ApplicationMonitor: NSObject {
     ]
     private var monitorTimer: Timer?
     private var lastReports: [String: (reason: BlockReason, mode: EnforcementMode, date: Date)] = [:]
+    private var entertainmentClassificationCache: [String: Bool] = [:]
+    private var terminationRequestedAt: [pid_t: Date] = [:]
     private let reportCooldown: TimeInterval = 60
+    private let forceTerminationDelay: TimeInterval = 2
 
     var onBlockedApplication: BlockHandler?
 
@@ -51,10 +61,11 @@ final class ApplicationMonitor: NSObject {
         monitorTimer = Timer.scheduledTimer(
             timeInterval: 1,
             target: self,
-            selector: #selector(checkFrontmostApplication),
+            selector: #selector(checkRunningApplications),
             userInfo: nil,
             repeats: true
         )
+        checkRunningApplications()
     }
 
     func stop() {
@@ -71,9 +82,15 @@ final class ApplicationMonitor: NSObject {
         evaluate(notification)
     }
 
-    @objc private func checkFrontmostApplication() {
-        guard let application = workspace.frontmostApplication else { return }
-        evaluate(application)
+    @objc private func checkRunningApplications() {
+        let applications = workspace.runningApplications
+        let runningProcessIdentifiers = Set(applications.map(\.processIdentifier))
+        terminationRequestedAt = terminationRequestedAt.filter {
+            runningProcessIdentifiers.contains($0.key)
+        }
+        for application in applications {
+            evaluate(application)
+        }
     }
 
     private func evaluate(_ notification: Notification) {
@@ -98,6 +115,7 @@ final class ApplicationMonitor: NSObject {
         )
         guard let reason = decision.reason else {
             lastReports.removeValue(forKey: bundleIdentifier)
+            terminationRequestedAt.removeValue(forKey: application.processIdentifier)
             return
         }
 
@@ -107,7 +125,15 @@ final class ApplicationMonitor: NSObject {
         // be stopped again even when the parent notification is deduplicated.
         if mode == .enforce {
             _ = application.hide()
-            _ = application.terminate()
+            let processIdentifier = application.processIdentifier
+            if let requestedAt = terminationRequestedAt[processIdentifier],
+               now.timeIntervalSince(requestedAt) >= forceTerminationDelay {
+                _ = application.forceTerminate()
+                terminationRequestedAt.removeValue(forKey: processIdentifier)
+            } else {
+                _ = application.terminate()
+                terminationRequestedAt[processIdentifier] = terminationRequestedAt[processIdentifier] ?? now
+            }
         }
 
         if let lastReport = lastReports[bundleIdentifier],
@@ -127,9 +153,6 @@ final class ApplicationMonitor: NSObject {
         )
 
         onBlockedApplication?(application, reason, mode)
-
-        // Enforcement requests a graceful quit and never force-terminates an
-        // app in this prototype. The one-second check repeats if it refuses.
     }
 
     private func isManagedEntertainmentApp(
@@ -139,11 +162,19 @@ final class ApplicationMonitor: NSObject {
         if policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier) {
             return true
         }
+        if let cached = entertainmentClassificationCache[bundleIdentifier] {
+            return cached
+        }
         guard
             let bundleURL = application.bundleURL,
             let bundle = Bundle(url: bundleURL),
             let category = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String
-        else { return false }
-        return category == "public.app-category.games"
+        else {
+            entertainmentClassificationCache[bundleIdentifier] = false
+            return false
+        }
+        let isGame = EntertainmentClassification.isGameCategory(category)
+        entertainmentClassificationCache[bundleIdentifier] = isGame
+        return isGame
     }
 }

@@ -4,7 +4,7 @@ This directory contains the first native macOS enforcement prototype. It keeps t
 
 ## Enforcement boundary
 
-The default policy is `enforce`. A configured entertainment application is allowed only while a Play timer has issued a non-expired native permission. Otherwise TimeBoxer hides it, requests a graceful quit, shows the shield, and records a family event. The prototype never force-terminates applications.
+The default policy is `enforce`. A configured entertainment application is allowed only while a Play timer has issued a non-expired native permission. Otherwise TimeBoxer hides it, requests a graceful quit, shows the shield, and records a family event. The monitor checks every running application once per second. If a blocked application is still running two seconds after the quit request, TimeBoxer force-terminates it.
 
 The local policy is created on first launch at:
 
@@ -22,7 +22,7 @@ The local policy is created on first launch at:
 
 TimeBoxer registers itself to start at login. Turning that setting off or quitting the app requires the shared parent PIN. Force Quit and administrator-level removal are not yet prevented; production-grade tamper resistance requires a privileged helper or Apple system parental-control capabilities.
 
-The current monitor identifies native applications through the family Bundle ID list and the macOS `public.app-category.games` category. It cannot distinguish YouTube or a web game from homework inside the same browser; URL-level control requires a browser extension, Network Extension, or Apple Family Controls.
+The current monitor identifies native applications through the family Bundle ID list and all macOS game categories, including specific categories such as board, strategy, and role-playing games. It cannot distinguish YouTube or a web game from homework inside the same browser; URL-level control requires a browser extension, Network Extension, or Apple Family Controls.
 
 ## Build and test
 
@@ -47,7 +47,7 @@ xcodebuild -license
 xcodebuild -version
 ```
 
-The locally verified app is installed at `/Applications/TimeBoxer.app`. Eight native rule/state XCTest cases pass.
+The locally verified app is installed at `/Applications/TimeBoxer.app`. Ten native rule/state/classification XCTest cases pass.
 
 ## Safe shield demo
 
