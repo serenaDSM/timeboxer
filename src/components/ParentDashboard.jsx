@@ -3,6 +3,7 @@ import {
   Activity,
   AppWindow,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock3,
   Gamepad2,
@@ -32,6 +33,42 @@ const formatEventTime = (timestamp) => new Intl.DateTimeFormat('en-NZ', {
   hour: 'numeric',
   minute: '2-digit',
 }).format(new Date(timestamp));
+
+function AccordionSection({
+  icon: Icon,
+  eyebrow,
+  title,
+  description,
+  badge,
+  defaultOpen = false,
+  className = '',
+  children,
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className={`rounded-[24px] border border-slate-200 bg-white shadow-sm ${className}`}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-3 p-4 text-left"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+          <Icon size={21} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[11px] font-black uppercase tracking-[0.14em] text-emerald-600">{eyebrow}</span>
+          <span className="mt-0.5 block text-lg font-black">{title}</span>
+          {description && <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{description}</span>}
+        </span>
+        {badge && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">{badge}</span>}
+        <ChevronDown size={19} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="border-t border-slate-100 p-4">{children}</div>}
+    </section>
+  );
+}
 
 export default function ParentDashboard({
   profile,
@@ -123,8 +160,8 @@ export default function ParentDashboard({
         </div>
         </header>
 
-      <main className="px-4 py-5">
-        <div className="mb-5 flex flex-col justify-between gap-3">
+      <main className="flex flex-col px-4 py-5">
+        <div className="order-1 mb-5 flex flex-col justify-between gap-3">
           <div>
             <div className="text-sm font-bold text-emerald-600">Good to see you</div>
             <h1 className="mt-1 text-3xl font-black tracking-tight">{profile.childName}’s plan</h1>
@@ -135,7 +172,7 @@ export default function ParentDashboard({
           </div>
         </div>
 
-        <section className="grid gap-4">
+        <section className="order-2 grid gap-4">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
@@ -176,7 +213,7 @@ export default function ParentDashboard({
           </div>
         </section>
 
-        <section className="mt-4 grid gap-4">
+        <section className="order-3 mt-4">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="flex flex-col justify-between gap-3">
               <div>
@@ -199,29 +236,32 @@ export default function ParentDashboard({
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="text-sm font-bold text-emerald-600">Child details</div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label><span className="text-xs font-bold text-slate-400">Name</span><input value={profile.childName} onChange={(event) => onUpdateProfile({ childName: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
-              <label><span className="text-xs font-bold text-slate-400">Age</span><input type="number" min="5" max="17" value={profile.age} onChange={(event) => onUpdateProfile({ age: Number(event.target.value) })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
-              <label className="col-span-2"><span className="text-xs font-bold text-slate-400">Bedtime</span><input type="time" value={profile.bedtime} onChange={(event) => onUpdateProfile({ bedtime: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
-            </div>
-          </div>
         </section>
 
-        <section data-testid="testing-tools" className="mt-4 rounded-[24px] border border-emerald-200 bg-emerald-50/60 p-4">
-          <div className="flex flex-col justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-emerald-700"><Gauge size={18} /> Parent-only testing tools</div>
-              <h2 className="mt-1 text-xl font-black">Adjust time without waiting</h2>
-              <p className="mt-1 text-sm text-slate-500">Quick countdown changes only the test speed. Real rewards and limits still apply.</p>
-            </div>
-            <div className={`rounded-full px-3 py-1.5 text-xs font-black ${testTimerSeconds > 0 ? 'bg-emerald-600 text-white' : 'bg-white text-slate-500'}`}>
-              {testTimerSeconds > 0 ? `Quick test: ${testTimerSeconds}s` : 'Real time'}
-            </div>
+        <AccordionSection
+          icon={Settings}
+          eyebrow="Set once"
+          title="Child profile"
+          description="Name, age and bedtime protection."
+          badge={`${profile.age} yrs`}
+          className="order-9 mt-4"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <label><span className="text-xs font-bold text-slate-400">Name</span><input value={profile.childName} onChange={(event) => onUpdateProfile({ childName: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
+            <label><span className="text-xs font-bold text-slate-400">Age</span><input type="number" min="5" max="17" value={profile.age} onChange={(event) => onUpdateProfile({ age: Number(event.target.value) })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
+            <label className="col-span-2"><span className="text-xs font-bold text-slate-400">Bedtime</span><input type="time" value={profile.bedtime} onChange={(event) => onUpdateProfile({ bedtime: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 font-bold outline-none focus:border-emerald-500" /></label>
           </div>
+        </AccordionSection>
 
-          <div className="mt-5 grid gap-4">
+        <AccordionSection
+          icon={Gauge}
+          eyebrow="Advanced"
+          title="Testing tools"
+          description="Adjust time without waiting during testing."
+          badge={testTimerSeconds > 0 ? `${testTimerSeconds}s` : 'Real time'}
+          className="order-10 mt-4"
+        >
+          <div data-testid="testing-tools" className="grid gap-4">
             <label className="rounded-2xl border border-emerald-100 bg-white p-4">
               <span className="text-xs font-bold text-slate-500">Earned bonus today</span>
               <div className="mt-2 flex items-center gap-2">
@@ -273,18 +313,22 @@ export default function ParentDashboard({
               </div>
             </div>
           </div>
-        </section>
+        </AccordionSection>
 
-        <section className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4">
-          <div className="flex flex-col justify-between gap-3">
-            <div>
-              <div className="text-sm font-bold text-emerald-600">Weekly plan</div>
-              <h2 className="mt-1 text-xl font-black">Keep the rules simple</h2>
-            </div>
-            <div className="text-sm text-slate-400">Current: <strong className="text-slate-700">{policy.name}</strong></div>
-          </div>
+        <div className="order-5 mt-7 px-1">
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Settings</div>
+          <div className="mt-1 text-sm text-slate-400">Open a category only when you need to change it.</div>
+        </div>
 
-          <div className="mt-5 grid gap-3">
+        <AccordionSection
+          icon={Clock3}
+          eyebrow="Set once"
+          title="Screen time plan"
+          description="Weekly limits, earn caps and protected apps or websites."
+          badge={policy.name}
+          className="order-6 mt-4"
+        >
+          <div className="grid gap-3">
             {Object.values(POLICY_PRESETS).map((preset) => (
               <button key={preset.id} onClick={() => onApplyPreset(preset.id)} className={`rounded-2xl border p-4 text-left transition ${policy.id === preset.id ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-100' : 'border-slate-200 hover:border-emerald-300'}`}>
                 <div className="flex items-center justify-between"><strong>{preset.name}</strong>{policy.id === preset.id && <Check size={18} className="text-emerald-600" />}</div>
@@ -331,15 +375,24 @@ export default function ParentDashboard({
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><Clock3 className="text-amber-500" size={20} /><div><strong>Eye break</strong><span className="block text-slate-400">10 min after long play</span></div></div>
             <div className="flex items-center gap-3 rounded-2xl border border-slate-200 p-4"><ShieldCheck className="text-emerald-500" size={20} /><div><strong>Health ceiling</strong><span className="block text-slate-400">Never above 120 min</span></div></div>
           </div>
+        </AccordionSection>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 shrink-0 text-emerald-600" size={20} />
-              <div>
-                <div className="font-black">Website protection</div>
-                <div className="mt-1 text-sm text-slate-400">Selected sites are blocked in Safari and Chrome unless a Play timer is running.</div>
-              </div>
-            </div>
+        <AccordionSection
+          icon={ShieldCheck}
+          eyebrow="Set once"
+          title="App & website protection"
+          description="Choose what the child Mac blocks outside Play time."
+          badge={`${blockedBundleIdentifiers.size} apps`}
+          className="order-7 mt-4"
+        >
+          <AccordionSection
+            icon={Globe2}
+            eyebrow="Protection list"
+            title="Websites"
+            description="Video and web-game domains."
+            badge={`${restrictedDomains.size} sites`}
+          >
+            <p className="text-sm leading-relaxed text-slate-500">Selected sites are blocked in Safari and Chrome unless a Play timer is running.</p>
             {['Video', 'Web games'].map((group) => (
               <div key={group} className="mt-4">
                 <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{group}</div>
@@ -390,16 +443,17 @@ export default function ParentDashboard({
               )}
               <p className="mt-2 text-xs leading-relaxed text-slate-400">Paste a full link or enter a domain. TimeBoxer saves only the website domain.</p>
             </div>
-          </div>
+          </AccordionSection>
 
-          <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-            <div className="flex items-start gap-3">
-              <AppWindow className="mt-0.5 shrink-0 text-emerald-600" size={20} />
-              <div className="min-w-0 flex-1">
-                <div className="font-black">Apps on {profile.childName}’s Mac</div>
-                <div className="mt-1 text-sm leading-relaxed text-slate-400">Detected on the child computer. Recommended entertainment apps start protected; a parent can change each one.</div>
-              </div>
-            </div>
+          <AccordionSection
+            icon={AppWindow}
+            eyebrow="Detected on Mac"
+            title="Applications"
+            description="Select installed apps to protect."
+            badge={`${detectedApplications.length} found`}
+            className="mt-3"
+          >
+            <p className="text-sm leading-relaxed text-slate-500">Detected on {profile.childName}’s Mac. Recommended entertainment apps start protected; a parent can change each one.</p>
             {detectedApplications.length === 0 ? (
               <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-400">
                 Connect the child Mac to load its installed apps.
@@ -435,13 +489,20 @@ export default function ParentDashboard({
             {detectedApplicationsScannedAt > 0 && (
               <div className="mt-3 text-xs text-slate-400">Last checked {formatEventTime(detectedApplicationsScannedAt)} · refreshes automatically</div>
             )}
-          </div>
-        </section>
+          </AccordionSection>
+        </AccordionSection>
 
-        <section className="mt-4 grid gap-4">
-          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between"><div><div className="text-sm font-bold text-emerald-600">Routines</div><h2 className="mt-1 text-xl font-black">Activities</h2></div><button onClick={() => onAddTask('earn')} className="flex items-center gap-2 rounded-xl bg-[#35d532] px-3 py-2 text-sm font-black text-slate-950"><Plus size={16} /> Add earn</button></div>
-            <div className="mt-5 space-y-2">
+        <section className="contents">
+          <AccordionSection
+            icon={Gift}
+            eyebrow="Set occasionally"
+            title="Activities & rewards"
+            description="Choose what earns time and what uses it."
+            badge={`${earnTasks.length + spendTasks.length} items`}
+            className="order-8 mt-4"
+          >
+            <div className="mb-4 flex justify-end"><button onClick={() => onAddTask('earn')} className="flex items-center gap-2 rounded-xl bg-[#35d532] px-3 py-2 text-sm font-black text-slate-950"><Plus size={16} /> Add earn</button></div>
+            <div className="space-y-2">
               {[...earnTasks.map((task) => ({ ...task, kind: 'earn' })), ...spendTasks.map((task) => ({ ...task, kind: 'spend' }))].map((task) => (
                 <div key={task.id} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${task.kind === 'earn' ? 'bg-emerald-100 text-emerald-600' : 'bg-violet-100 text-violet-600'}`}>{task.kind === 'earn' ? <Gift size={18} /> : <Gamepad2 size={18} />}</div>
@@ -452,13 +513,13 @@ export default function ParentDashboard({
               ))}
             </div>
             <button onClick={() => onAddTask('spend')} className="mt-3 flex items-center gap-2 text-sm font-black text-emerald-600"><Plus size={16} /> Add entertainment</button>
-          </div>
+          </AccordionSection>
 
-          <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+          <div className="order-4 mt-4 rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between"><div><div className="text-sm font-bold text-emerald-600">Live activity</div><h2 className="mt-1 text-xl font-black">Recent</h2></div><ChevronRight size={20} className="text-slate-300" /></div>
             <div className="mt-5 space-y-4">
               {recentEvents.length === 0 && <div className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-400">Activity will appear here.</div>}
-              {recentEvents.slice(0, 6).map((event) => (
+              {recentEvents.slice(0, 4).map((event) => (
                 <div key={event.id} className="flex gap-3">
                   <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                   <div className="min-w-0 flex-1"><div className="text-sm font-semibold text-slate-700">{event.message}</div><div className="mt-0.5 text-xs text-slate-400">{formatEventTime(event.createdAt)}</div></div>
@@ -468,7 +529,7 @@ export default function ParentDashboard({
           </div>
         </section>
 
-        <div className="mt-6 flex justify-end">
+        <div className="order-[11] mt-6 flex justify-end">
           <button onClick={onReset} className="flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-red-500"><RotateCcw size={16} /> Reset time data</button>
         </div>
       </main>
