@@ -30,7 +30,7 @@ final class AuthenticationModel: ObservableObject {
 
     func signIn(email: String, password: String) async {
         await submit {
-            let session = try await client.auth.signIn(email: email, password: password)
+            let session = try await self.client.auth.signIn(email: email, password: password)
             self.state = .signedIn(userID: session.user.id)
             self.message = nil
         }
@@ -38,7 +38,7 @@ final class AuthenticationModel: ObservableObject {
 
     func signUp(email: String, password: String) async {
         await submit {
-            let response = try await client.auth.signUp(email: email, password: password)
+            let response = try await self.client.auth.signUp(email: email, password: password)
             if let session = response.session {
                 self.state = .signedIn(userID: session.user.id)
                 self.message = nil

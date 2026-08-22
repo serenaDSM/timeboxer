@@ -16,6 +16,7 @@
 		100000000000000000000008 /* AuthenticationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* AuthenticationModel.swift */; };
 		100000000000000000000009 /* ParentAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* ParentAuthView.swift */; };
 		10000000000000000000000A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000001 /* Supabase */; };
+		10000000000000000000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 20000000000000000000000B /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,8 @@
 		200000000000000000000007 /* SupabaseEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseEnvironment.swift; sourceTree = "<group>"; };
 		200000000000000000000008 /* AuthenticationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationModel.swift; sourceTree = "<group>"; };
 		200000000000000000000009 /* ParentAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentAuthView.swift; sourceTree = "<group>"; };
+		20000000000000000000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		20000000000000000000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000000000000000000010 /* TimeBoxerParent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TimeBoxerParent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -63,6 +66,8 @@
 				200000000000000000000007 /* SupabaseEnvironment.swift */,
 				200000000000000000000008 /* AuthenticationModel.swift */,
 				200000000000000000000009 /* ParentAuthView.swift */,
+				20000000000000000000000A /* Info.plist */,
+				20000000000000000000000B /* Assets.xcassets */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -127,7 +132,9 @@
 		600000000000000000000002 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+				10000000000000000000000B /* Assets.xcassets in Resources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -157,10 +164,12 @@
 		800000000000000000000003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "TimeBoxer Parent";
 				INFOPLIST_KEY_TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "$(TIMEBOXER_SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_TIMEBOXER_SUPABASE_URL = "$(TIMEBOXER_SUPABASE_URL)";
@@ -183,9 +192,11 @@
 		800000000000000000000004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "TimeBoxer Parent";
 				INFOPLIST_KEY_TIMEBOXER_SUPABASE_PUBLISHABLE_KEY = "$(TIMEBOXER_SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_TIMEBOXER_SUPABASE_URL = "$(TIMEBOXER_SUPABASE_URL)";

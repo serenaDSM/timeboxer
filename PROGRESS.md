@@ -351,7 +351,11 @@
 - [x] 修复 family 与 family_members 的 RLS 循环引用；内部成员判断函数位于不可暴露的 private schema，并仅授予策略执行所需的最小权限。
 - [x] Supabase Security Advisor 无 warning/error；12 张 TimeBoxer 表全部启用 RLS，私密凭证表保持默认拒绝。
 - [x] iPhone 家长端加入固定版本 Supabase Swift SDK、TimeBoxer 独立项目配置和真实邮箱注册/登录界面；官方依赖已解析并锁定。
-- [ ] 当前 Xcode 缺少 iOS Simulator runtime，需安装后完成新增家长登录界面的最终编译和真机/模拟器登录测试。
+- [x] 安装 iOS 18.6 Simulator runtime，创建 `TimeBoxer Test iPhone`（iPhone 16 Pro）并完成家长端首次模拟器安装。
+- [x] 修复登录/注册闭包的 Swift 编译错误，以及自动生成 `Info.plist` 丢失 Supabase 配置导致的启动退出；Debug 包现可稳定进入真实登录页。
+- [x] iPhone 主屏幕图标复用已确认的黑底绿色方盒品牌资产，移除 Xcode 系统占位图，并在模拟器主屏幕完成视觉核对。
+- [x] 使用不创建账号的无效登录请求验证 TimeBoxer Auth 地址和 publishable key；云项目状态为健康，四批迁移存在，9 张公开表全部启用 RLS，且未访问 `s-nz-ledger`。
+- [ ] 使用真实测试邮箱完成注册确认、登录与会话恢复验收；当前登录后的 Dashboard 和六位码配对仍需由 Preview 服务切换为真实云服务。
 - [ ] 下一步：实现家庭首次初始化、Mac 六位码配对、设备同步和 APNs Edge Functions。
 
 ---
