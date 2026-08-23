@@ -30,5 +30,11 @@
     <string>TimeBoxer reads the active Safari or Chrome tab so it can block video and web-game sites outside approved Play time.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>TIMEBOXER_SUPABASE_PUBLISHABLE_KEY</key>
+    <string>sb_publishable_NV9ay5NPWlQ0KQhLbLdtog_BmuwJf6I</string>
+    <key>TIMEBOXER_SUPABASE_ANON_JWT</key>
+    <string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp5c2RhZnZ4ZXhueWZwbGVocWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMDE2NjcsImV4cCI6MjEwMjg3NzY2N30.jrUDRIXUFRBY42lgDaIgVX_oizY7_YFyzZBaG6ujUGM</string>
+    <key>TIMEBOXER_SUPABASE_URL</key>
+    <string>https://jysdafvxexnyfplehqga.supabase.co</string>
 </dict>
 </plist>

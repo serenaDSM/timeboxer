@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct TimeBoxerParentApp: App {
     @StateObject private var authentication = AuthenticationModel()
-    @StateObject private var model = ParentAppModel(service: PreviewFamilyCloudService())
+    @StateObject private var model = ParentAppModel(service: SupabaseFamilyCloudService())
 
     var body: some Scene {
         WindowGroup {
@@ -43,6 +43,7 @@ private struct ParentAppRootView: View {
 private struct ParentRootView: View {
     @EnvironmentObject private var authentication: AuthenticationModel
     @EnvironmentObject private var model: ParentAppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -57,6 +58,10 @@ private struct ParentRootView: View {
         }
         .task {
             await model.refresh()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await model.refresh() }
         }
         .sheet(isPresented: $model.isPairingPresented) {
             PairChildMacView()

@@ -20,8 +20,34 @@ final class AuthenticationModel: ObservableObject {
     }
 
     func restoreSession() async {
+#if DEBUG
+        let environment = ProcessInfo.processInfo.environment
+        if
+            let testEmail = environment["TIMEBOXER_TEST_EMAIL"],
+            let testPassword = environment["TIMEBOXER_TEST_PASSWORD"],
+            !testEmail.isEmpty,
+            !testPassword.isEmpty
+        {
+            do {
+                let session = try await client.auth.signIn(email: testEmail, password: testPassword)
+                await SupabaseEnvironment.sessionStore.set(
+                    accessToken: session.accessToken,
+                    userID: session.user.id
+                )
+                state = .signedIn(userID: session.user.id)
+                message = nil
+                return
+            } catch {
+                message = "Test family login failed: \(error.localizedDescription)"
+            }
+        }
+#endif
         do {
             let session = try await client.auth.session
+            await SupabaseEnvironment.sessionStore.set(
+                accessToken: session.accessToken,
+                userID: session.user.id
+            )
             state = .signedIn(userID: session.user.id)
         } catch {
             state = .signedOut
@@ -31,6 +57,10 @@ final class AuthenticationModel: ObservableObject {
     func signIn(email: String, password: String) async {
         await submit {
             let session = try await self.client.auth.signIn(email: email, password: password)
+            await SupabaseEnvironment.sessionStore.set(
+                accessToken: session.accessToken,
+                userID: session.user.id
+            )
             self.state = .signedIn(userID: session.user.id)
             self.message = nil
         }
@@ -40,6 +70,10 @@ final class AuthenticationModel: ObservableObject {
         await submit {
             let response = try await self.client.auth.signUp(email: email, password: password)
             if let session = response.session {
+                await SupabaseEnvironment.sessionStore.set(
+                    accessToken: session.accessToken,
+                    userID: session.user.id
+                )
                 self.state = .signedIn(userID: session.user.id)
                 self.message = nil
             } else {
@@ -55,6 +89,7 @@ final class AuthenticationModel: ObservableObject {
         } catch {
             message = "The cloud session could not be closed cleanly."
         }
+        await SupabaseEnvironment.sessionStore.clear()
         state = .signedOut
     }
 

@@ -34,7 +34,9 @@ struct ParentDashboardView: View {
                 TimeBoxerBrand(compact: true)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button { } label: {
+                NavigationLink {
+                    ParentAlertsView(alerts: model.snapshot.alerts)
+                } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "bell.fill")
                             .foregroundStyle(.primary)
@@ -133,7 +135,7 @@ struct ParentDashboardView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Today")
                         .font(.headline)
-                    Text("School day plan")
+                    Text("\(model.snapshot.currentDayPlan.title) plan")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -154,11 +156,26 @@ struct ParentDashboardView: View {
     private var commonActions: some View {
         DisclosureGroup {
             VStack(spacing: 0) {
-                settingsRow("Change today’s plan", icon: "calendar")
+                NavigationLink {
+                    TodayPlanSettingsView()
+                } label: {
+                    settingsRow("Change today’s plan", icon: "calendar")
+                }
+                .buttonStyle(.plain)
                 Divider()
-                settingsRow("Adjust available time", icon: "clock.badge.plus")
+                NavigationLink {
+                    AvailableTimeSettingsView()
+                } label: {
+                    settingsRow("Adjust available time", icon: "clock.badge.plus")
+                }
+                .buttonStyle(.plain)
                 Divider()
-                settingsRow("Protected apps and websites", icon: "shield.lefthalf.filled")
+                NavigationLink {
+                    ProtectionSettingsView()
+                } label: {
+                    settingsRow("Protected apps and websites", icon: "shield.lefthalf.filled")
+                }
+                .buttonStyle(.plain)
             }
             .padding(.top, 10)
         } label: {
@@ -178,9 +195,19 @@ struct ParentDashboardView: View {
                 }
                 .buttonStyle(.plain)
                 Divider()
-                settingsRow("Family profile", icon: "person.2.fill")
+                NavigationLink {
+                    FamilyProfileView(device: model.snapshot.device)
+                } label: {
+                    settingsRow("Family profile", icon: "person.2.fill")
+                }
+                .buttonStyle(.plain)
                 Divider()
-                settingsRow("Subscription", icon: "creditcard.fill")
+                NavigationLink {
+                    SubscriptionView()
+                } label: {
+                    settingsRow("Subscription", icon: "creditcard.fill")
+                }
+                .buttonStyle(.plain)
             }
             .padding(.top, 10)
         } label: {
@@ -207,12 +234,270 @@ struct ParentDashboardView: View {
     }
 
     private func offlineMessage(_ message: String) -> some View {
-        Label(message, systemImage: "wifi.exclamationmark")
-            .font(.caption)
-            .foregroundStyle(Color.orange)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .timeBoxerCard(background: Color.orange.opacity(0.08), border: Color.orange.opacity(0.2))
+        VStack(alignment: .leading, spacing: 10) {
+            Label(message, systemImage: "wifi.exclamationmark")
+                .font(.caption)
+                .foregroundStyle(Color.orange)
+            Button {
+                Task { await model.refresh() }
+            } label: {
+                Label(model.isRefreshing ? "Refreshing…" : "Try again", systemImage: "arrow.clockwise")
+                    .font(.caption.bold())
+            }
+            .disabled(model.isRefreshing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .timeBoxerCard(background: Color.orange.opacity(0.08), border: Color.orange.opacity(0.2))
     }
+}
+
+private struct TodayPlanSettingsView: View {
+    @EnvironmentObject private var model: ParentAppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsStatus(
+                    title: "Current plan",
+                    detail: "\(model.snapshot.currentDayPlan.title) · \(model.snapshot.device.dailyLimit) entertainment minutes",
+                    icon: "calendar.badge.checkmark"
+                )
+                planCard(.school, detail: "Short and predictable for learning days")
+                planCard(.weekend, detail: "A little more flexibility with the same boundaries")
+                planCard(.holiday, detail: "The most flexible built-in family template")
+                cloudWriteNote("This choice applies to today and is saved to the TimeBoxer cloud. The child Mac will use it after policy download is connected.")
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Today’s plan")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func planCard(_ plan: FamilyDayPlan, detail: String) -> some View {
+        let selected = model.snapshot.currentDayPlan == plan
+        let minutes = model.snapshot.policy.document.dayPlans[plan].baseMinutes
+        return Button {
+            Task { await model.selectTodayPlan(plan) }
+        } label: {
+            HStack(spacing: 13) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle(selected ? TimeBoxerColors.green : Color.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(plan.title).font(.headline).foregroundStyle(.primary)
+                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(minutes) min").font(.headline).foregroundStyle(TimeBoxerColors.green)
+            }
+            .timeBoxerCard(border: selected ? TimeBoxerColors.green.opacity(0.45) : Color.black.opacity(0.08))
+        }
+        .buttonStyle(.plain)
+        .disabled(model.isSavingPolicy)
+    }
+}
+
+private struct AvailableTimeSettingsView: View {
+    @EnvironmentObject private var model: ParentAppModel
+    @State private var bonusMinutes = 0
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsStatus(
+                    title: "\(model.snapshot.device.availableMinutes) minutes available",
+                    detail: "\(model.snapshot.policy.document.dayPlans[model.snapshot.currentDayPlan].baseMinutes) base minutes · \(model.snapshot.device.usedMinutes) used today",
+                    icon: "clock.badge.checkmark"
+                )
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Parent extra time").font(.headline)
+                    Stepper(value: $bonusMinutes, in: 0...120, step: 5) {
+                        Text("+\(bonusMinutes) minutes today")
+                            .font(.title3.bold())
+                            .foregroundStyle(TimeBoxerColors.green)
+                    }
+                    HStack(spacing: 8) {
+                        ForEach([0, 5, 10, 20], id: \.self) { minutes in
+                            Button(minutes == 0 ? "Reset" : "+\(minutes)") {
+                                bonusMinutes = minutes
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    Button(model.isSavingPolicy ? "Saving…" : "Save for today") {
+                        Task { await model.setParentBonusMinutes(bonusMinutes) }
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+                    .disabled(model.isSavingPolicy)
+                }
+                .timeBoxerCard()
+                cloudWriteNote("Extra time is stored separately from the base plan and expires at the end of today.")
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Available time")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            bonusMinutes = model.snapshot.policy.document.parentBonusMinutes ?? 0
+        }
+    }
+}
+
+private struct ProtectionSettingsView: View {
+    @EnvironmentObject private var model: ParentAppModel
+    @State private var domain = ""
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsStatus(
+                    title: "Protection configured",
+                    detail: "The paired Mac keeps enforcing its last downloaded family rules.",
+                    icon: "checkmark.shield.fill"
+                )
+                protectionCard("Applications", detail: "Games and entertainment apps detected on the child Mac", icon: "square.grid.2x2")
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Websites", systemImage: "globe")
+                        .font(.headline)
+                        .foregroundStyle(TimeBoxerColors.green)
+                    HStack {
+                        TextField("youtube.com", text: $domain)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .textFieldStyle(.roundedBorder)
+                        Button("Add") {
+                            let value = domain
+                            domain = ""
+                            Task { await model.addProtectedDomain(value) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(TimeBoxerColors.green)
+                        .disabled(domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSavingPolicy)
+                    }
+                    if model.snapshot.policy.document.protectedDomains.isEmpty {
+                        Text("No custom websites yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(model.snapshot.policy.document.protectedDomains, id: \.self) { protectedDomain in
+                            HStack {
+                                Text(protectedDomain).font(.subheadline)
+                                Spacer()
+                                Button(role: .destructive) {
+                                    Task { await model.removeProtectedDomain(protectedDomain) }
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .disabled(model.isSavingPolicy)
+                            }
+                            Divider()
+                        }
+                    }
+                }
+                .timeBoxerCard()
+                cloudWriteNote("Website changes now save to the cloud. Detected Mac applications will become editable after the device uploads its app inventory in the next sync step.")
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Apps and websites")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func protectionCard(_ title: String, detail: String, icon: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: icon).foregroundStyle(TimeBoxerColors.green)
+        }
+        .timeBoxerCard()
+    }
+}
+
+private struct FamilyProfileView: View {
+    let device: ChildDeviceSummary
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsStatus(title: device.childName, detail: "Child profile", icon: "person.crop.circle.fill")
+                settingsStatus(title: device.deviceName, detail: "Paired child Mac", icon: "laptopcomputer")
+                cloudWriteNote("Profile editing will be enabled together with family policy sync. The information shown above is already loaded from the TimeBoxer cloud.")
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Family profile")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SubscriptionView: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsStatus(title: "Pilot plan", detail: "Active for this test family", icon: "checkmark.seal.fill")
+                cloudWriteNote("Billing is not active during the private pilot. Subscription choices will be connected before public release.")
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Subscription")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ParentAlertsView: View {
+    let alerts: [FamilyAlert]
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                if alerts.isEmpty {
+                    settingsStatus(title: "No recent alerts", detail: "Blocked activity and requests will appear here.", icon: "bell.badge")
+                } else {
+                    ForEach(alerts) { alert in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(alert.title).font(.headline)
+                            Text(alert.detail).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .timeBoxerCard()
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(TimeBoxerColors.background)
+        .navigationTitle("Alerts")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private func settingsStatus(title: String, detail: String, icon: String) -> some View {
+    HStack(spacing: 13) {
+        Image(systemName: icon)
+            .font(.title2)
+            .foregroundStyle(TimeBoxerColors.green)
+            .frame(width: 30)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.headline)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+        Spacer()
+    }
+    .timeBoxerCard()
+}
+
+private func cloudWriteNote(_ text: String) -> some View {
+    Label(text, systemImage: "info.circle.fill")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .timeBoxerCard(background: Color.blue.opacity(0.05), border: Color.blue.opacity(0.12))
 }
 
 private extension View {

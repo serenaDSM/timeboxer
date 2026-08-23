@@ -552,13 +552,19 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
       </div>
 
       <div className="mt-16 flex items-center gap-8">
-        <button 
-          onClick={toggleTimer}
-          aria-label={isActive ? 'Pause timer' : 'Resume timer'}
-          className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-        >
-          {isActive ? <Pause size={40} className="text-white" /> : <Play size={40} className="text-white ml-2" />}
-        </button>
+        {isEarnMode ? (
+          <button
+            onClick={toggleTimer}
+            aria-label={isActive ? 'Pause timer' : 'Resume timer'}
+            className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+          >
+            {isActive ? <Pause size={40} className="text-white" /> : <Play size={40} className="text-white ml-2" />}
+          </button>
+        ) : (
+          <div role="status" className="rounded-full border border-brand-green/40 bg-brand-green/10 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-brand-green">
+            Play access active
+          </div>
+        )}
         
         <button 
           onClick={handleActionClick}
@@ -580,8 +586,10 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
           </span>
         ) : isOvertime ? (
           <span className="text-[#FFD700]">Target reached! Keep going, or click the Trophy to claim today’s bonus.</span>
+        ) : !isEarnMode ? (
+          <span className="text-white/70">Parent-approved entertainment apps and selected websites are unlocked. You can switch to them now; TimeBoxer will lock them again when this countdown ends.</span>
         ) : (
-          <span>Stay focused. {isEarnMode && "Switching apps or shrinking the window will pause the timer."}</span>
+          <span>Stay focused. Switching apps or shrinking the window will pause the timer.</span>
         )}
       </div>
 

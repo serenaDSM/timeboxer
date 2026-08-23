@@ -24,7 +24,8 @@ fi
 XCODEBUILD_BIN="$XCODE_DEVELOPER_DIR/usr/bin/xcodebuild"
 ASSET_CATALOG_COMPILER="$XCODE_DEVELOPER_DIR/usr/bin/actool"
 SWIFT_BIN="$XCODE_DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
-MACOS_SDK="$XCODE_DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+MACOS_SDK_LINK="$XCODE_DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+MACOS_SDK="$(cd "$MACOS_SDK_LINK" && pwd -P)"
 
 cd "$PROJECT_ROOT"
 
@@ -34,11 +35,20 @@ if [[ ! -x "$XCODEBUILD_BIN" || ! -x "$ASSET_CATALOG_COMPILER" || ! -x "$SWIFT_B
 fi
 
 export DEVELOPER_DIR="$XCODE_DEVELOPER_DIR"
-export SDKROOT="$MACOS_SDK"
+export CLANG_MODULE_CACHE_PATH="/private/tmp/timeboxer-clang-module-cache"
 
-npm run build:child
+if [[ "${TIMEBOXER_REUSE_WEB_BUILD:-0}" != "1" ]]; then
+  npm run build:child
+elif [[ ! -f "$PROJECT_ROOT/dist-child/index.html" ]]; then
+  echo "TIMEBOXER_REUSE_WEB_BUILD=1 requires an existing dist-child/index.html" >&2
+  exit 2
+fi
 
-SWIFT_BUILD_ARGS=(build -c release --package-path "$MAC_ROOT")
+SWIFT_BUILD_ARGS=(
+  build -c release --jobs 1 --disable-index-store --package-path "$MAC_ROOT"
+  -Xswiftc -num-threads -Xswiftc 1
+  -Xswiftc -module-cache-path -Xswiftc /private/tmp/timeboxer-swift-module-cache
+)
 if [[ "${TIMEBOXER_DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]]; then
   SWIFT_BUILD_ARGS+=(--disable-sandbox)
 fi
@@ -62,7 +72,9 @@ xattr -cr "$APP_ROOT"
 # assembly. They are harmless metadata but invalidate macOS code signing.
 xattr -d com.apple.FinderInfo "$APP_ROOT" 2>/dev/null || true
 xattr -d 'com.apple.fileprovider.fpfs#P' "$APP_ROOT" 2>/dev/null || true
-codesign --force --deep --sign - "$APP_ROOT"
+codesign --force --deep --sign - \
+  --requirements '=designated => identifier "nz.co.timeboxer.mac"' \
+  "$APP_ROOT"
 codesign --verify --deep --strict --verbose=2 "$APP_ROOT"
 
 rm -rf "$OUTPUT_APP_ROOT"
@@ -74,7 +86,9 @@ ditto --norsrc --noextattr "$APP_ROOT" "$OUTPUT_APP_ROOT"
 xattr -cr "$OUTPUT_APP_ROOT"
 xattr -d com.apple.FinderInfo "$OUTPUT_APP_ROOT" 2>/dev/null || true
 xattr -d 'com.apple.fileprovider.fpfs#P' "$OUTPUT_APP_ROOT" 2>/dev/null || true
-codesign --force --deep --sign - "$OUTPUT_APP_ROOT"
+codesign --force --deep --sign - \
+  --requirements '=designated => identifier "nz.co.timeboxer.mac"' \
+  "$OUTPUT_APP_ROOT"
 codesign --verify --deep --strict --verbose=2 "$OUTPUT_APP_ROOT"
 
 echo "$OUTPUT_APP_ROOT"

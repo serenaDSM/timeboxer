@@ -355,8 +355,47 @@
 - [x] 修复登录/注册闭包的 Swift 编译错误，以及自动生成 `Info.plist` 丢失 Supabase 配置导致的启动退出；Debug 包现可稳定进入真实登录页。
 - [x] iPhone 主屏幕图标复用已确认的黑底绿色方盒品牌资产，移除 Xcode 系统占位图，并在模拟器主屏幕完成视觉核对。
 - [x] 使用不创建账号的无效登录请求验证 TimeBoxer Auth 地址和 publishable key；云项目状态为健康，四批迁移存在，9 张公开表全部启用 RLS，且未访问 `s-nz-ledger`。
-- [ ] 使用真实测试邮箱完成注册确认、登录与会话恢复验收；当前登录后的 Dashboard 和六位码配对仍需由 Preview 服务切换为真实云服务。
-- [ ] 下一步：实现家庭首次初始化、Mac 六位码配对、设备同步和 APNs Edge Functions。
+- [x] 使用真实测试邮箱完成注册确认与登录验收；Dashboard 和六位码配对已从 Preview 服务切换为真实 TimeBoxer 云服务。
+- [x] 实现家庭首次初始化和 Mac 六位码配对；设备密钥仅保存在 macOS 钥匙串，云端只保存摘要。
+- [ ] 下一步：实现 Mac 定时心跳、策略/事件双向同步和 APNs Edge Functions。
+
+### [2026-08-23] iPhone 家长端与 Mac 孩子端真实云绑定
+- [x] 在 TimeBoxer 独立 Supabase 项目部署 `timeboxer-pairing` Edge Function，支持家长首次家庭初始化、单次六位码创建和 Mac 消费绑定码。
+- [x] 使用 `19813880@qq.com` 完成邮箱确认、真实 Auth 登录，并创建独立 family、owner membership、child、policy 和 entitlement。
+- [x] Mac 安装版加入 `Pair with Parent…`，以安装身份、公钥和一次性码换取设备凭据；设备 ID、孩子 ID与策略版本写入本机身份文件，设备密钥写入 macOS 钥匙串。
+- [x] 修复 PostgreSQL `bigint` 作为字符串返回导致 Mac 原生解码失败，并重新部署函数；真实设备 `Serena’s MacBook Air` 绑定成功。
+- [x] iPhone 家长端改用真实 Supabase 服务，显式携带家长 JWT 通过 RLS 读取设备、请求和违规事件；不再显示 Alex 预览数据。
+- [x] iPhone 18.6 模拟器验证真实孩子档案、Mac 名称与 20 分钟 School day 模板；30 项 Web/安全测试、ESLint、iOS Debug 构建、macOS Release 构建和签名均通过。
+- [x] Mac 安装版每 30 秒使用设备 ID、安装 ID 和钥匙串密钥向云端安全上报心跳；家长端以 90 秒阈值显示 Online/Offline，已用真实绑定设备连续验证。
+- [x] 修复 SwiftUI 刷新任务被系统取消时误报“云服务无法连接”；应用回到前台会自动刷新，页面仍支持下拉刷新，真实错误卡增加 `Try again`。
+- [x] 将此前仅有外观的 Common controls、Family profile、Subscription 和提醒铃铛接入可打开的原生详情页；未完成云端写入的控制明确标注为下一阶段，不再假装已经生效。
+
+### [2026-08-23] 原生品牌修正与 Play 放行体验
+- [x] iPhone 家长端移除小号黑底系统立方体字标，改为与原版一致的绿色线框方盒、银灰斜体 `TIME` 和绿色斜体 `BOXER`。
+- [x] 在 iPhone 16 Pro 模拟器重新编译、覆盖安装并截图核对，确认登录页使用放大后的单一品牌 Logo。
+- [x] Play 倒计时移除孩子可暂停的入口，避免界面暂停时间与 Mac 原生绝对通行证到期时间不一致。
+- [x] Play 页面明确显示 `Play access active`：家长批准的娱乐 App 与所选网站可在倒计时内打开，倒计时结束、提前退出或页面关闭后恢复拦截。
+- [x] 30 项 Web 业务/安全规则测试通过，iOS 原生 Debug 构建通过。
+- [x] SwiftPM 卡顿定位为嵌套沙箱、模块缓存和索引冲突；构建脚本固定临时模块缓存并关闭无用索引，macOS Release 打包与严格签名校验重新通过。
+
+### [2026-08-23] 真实设备在线状态闭环
+- [x] `timeboxer-pairing` Edge Function 增加设备心跳动作，以摘要比对验证设备密钥，不放宽 RLS，也不在公开表保存原始密钥。
+- [x] 孩子 Mac 启动后立即心跳、之后每 30 秒续报，同时回收当前云端策略版本，为下一步策略下发提供版本依据。
+- [x] 将新版孩子端重新打包、严格验签并安装至 `/Applications/TimeBoxer.app`；旧版保留在 `/private/tmp/TimeBoxer-before-heartbeat-20260823-2121.app`。
+- [x] 因开发期 ad-hoc 签名变化导致旧钥匙串 ACL 不再匹配，为当前测试 Mac 安全重新签发设备凭据；未降级为明文凭据存储。
+- [x] 真实日志连续确认启动心跳和 30 秒续报均成功，iPhone 18.6 模拟器家长端随后显示 `Serena’s MacBook Air · Online`。
+- [x] 家长端日期、可用时间和网站保护已写入云端并由 Mac 拉取、执行和回执；实际 App 清单上传与远程选择单列为下一项。
+
+### [2026-08-23] 家长策略写入与 Mac 执行闭环
+- [x] 家长端 Common controls 接入真实云端策略：可选择今天为 School day / Weekend / Holiday、设置 0–120 分钟当天家长加时、添加或删除自定义保护域名。
+- [x] 家长策略采用乐观版本控制；只有家庭成员可更新，旧版本保存会返回冲突而不会静默覆盖另一台家长设备的新规则。
+- [x] Edge Function 对计划额度、会话/冷却时间、Earn 任务、App 标识、域名和当天覆盖字段执行范围与格式校验；家庭策略 JSON Schema 同步加入当天计划和家长加时字段。
+- [x] Mac 心跳携带已执行策略版本；云端仅在有更新时返回完整策略，Mac 成功保存到原生规则和孩子界面家庭状态后，下一次心跳才回执已执行版本。
+- [x] 真实云端执行临时 +5 分钟测试：策略 revision 1 → 2，iPhone 重启后读回周末 35 分钟；随后恢复为 0，revision 3，iPhone 显示 Weekend plan / 30 min，Mac 下载并执行 revision 3。
+- [x] 修复家长端日期文案硬编码为 School day 的数据错位；当前周末会同时显示 Weekend plan、30 min left 和 0 of 30 used。
+- [x] ad-hoc 开发包使用固定 `nz.co.timeboxer.mac` designated requirement；更换了实际二进制后仍可读取原钥匙串凭据并直接心跳，无需再次配对。正式内测仍需 Apple Development/Developer ID 签名。
+- [x] 30 项 Web/契约/安全测试、iOS Debug 构建、macOS Release 构建、严格签名、真实双端安装和运行验收通过。
+- [ ] 下一步：Mac 将 41 个已安装 App 清单上传云端，家长端按实际设备清单选择保护项；之后接通违规事件和加时申请的云端往返。
 
 ---
 

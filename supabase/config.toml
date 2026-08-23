@@ -4,6 +4,12 @@
 # working directory name when running `supabase init`.
 project_id = "kids-time-manager"
 
+[functions.timeboxer-pairing]
+# Parent requests use a user JWT. The Mac uses the legacy public anon JWT only
+# for the gateway check, then @supabase/server validates the publishable key and
+# the function consumes the separate one-time pairing code.
+verify_jwt = true
+
 [api]
 enabled = true
 # Port to use for the API URL.
