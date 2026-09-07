@@ -1,28 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Activity,
-  AlertTriangle,
-  AppWindow,
-  Bell,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clock3,
-  Gamepad2,
-  Gauge,
-  Gift,
-  Globe2,
-  Moon,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Settings,
-  ShieldCheck,
-  Smartphone,
-  Trash2,
-  WifiOff,
-  X,
-} from 'lucide-react';
+import Activity from 'lucide-react/dist/esm/icons/activity.js';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import AppWindow from 'lucide-react/dist/esm/icons/app-window.js';
+import Bell from 'lucide-react/dist/esm/icons/bell.js';
+import Check from 'lucide-react/dist/esm/icons/check.js';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.js';
+import Clock3 from 'lucide-react/dist/esm/icons/clock-3.js';
+import Gamepad2 from 'lucide-react/dist/esm/icons/gamepad-2.js';
+import Gauge from 'lucide-react/dist/esm/icons/gauge.js';
+import Gift from 'lucide-react/dist/esm/icons/gift.js';
+import Globe2 from 'lucide-react/dist/esm/icons/globe-2.js';
+import Moon from 'lucide-react/dist/esm/icons/moon.js';
+import Pencil from 'lucide-react/dist/esm/icons/pencil.js';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
+import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw.js';
+import Settings from 'lucide-react/dist/esm/icons/settings.js';
+import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.js';
+import Smartphone from 'lucide-react/dist/esm/icons/smartphone.js';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js';
+import WifiOff from 'lucide-react/dist/esm/icons/wifi-off.js';
+import X from 'lucide-react/dist/esm/icons/x.js';
 import {
   getParentAlertEvents,
   getParentAlertMetadata,
@@ -259,7 +257,7 @@ export default function ParentDashboard({
     window.localStorage.setItem(PARENT_ALERTS_ENABLED_KEY, String(enabled));
     if (enabled) {
       new window.Notification('TimeBoxer alerts are on', {
-        body: `This browser can now show ${profile.childName}’s requests and blocked attempts while the page is running.`,
+        body: `This browser can now show ${profile.childName}’s requests and entertainment alerts while the page is running.`,
         tag: 'timeboxer-alerts-enabled',
       });
     }
@@ -554,7 +552,7 @@ export default function ParentDashboard({
           icon={ShieldCheck}
           eyebrow="Set once"
           title="App & website protection"
-          description="Choose what the child Mac blocks outside Play time."
+          description="Choose what activates the child Mac focus shield and parent alert outside Play time."
           badge={`${blockedBundleIdentifiers.size} apps`}
           className="order-7 mt-4"
         >
@@ -565,7 +563,7 @@ export default function ParentDashboard({
             description="Video and web-game domains."
             badge={`${restrictedDomains.size} sites`}
           >
-            <p className="text-sm leading-relaxed text-slate-500">Selected sites are blocked in Safari and Chrome unless a Play timer is running.</p>
+            <p className="text-sm leading-relaxed text-slate-500">Selected sites activate a full-screen Mac shield, alarm, and parent alert outside Play time. The browser remains open behind the shield.</p>
             {['Video', 'Web games'].map((group) => (
               <div key={group} className="mt-4">
                 <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{group}</div>
@@ -728,7 +726,7 @@ export default function ParentDashboard({
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${alertsEnabled && notificationPermission === 'granted' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}><Bell size={19} /></span>
                   <div className="min-w-0 flex-1">
                     <div className="font-black">Browser alerts</div>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-400">Shows requests and blocked attempts while this parent page is running, including supported background tabs.</p>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-400">Shows requests and entertainment alerts while this parent page is running, including supported background tabs.</p>
                   </div>
                 </div>
                 {notificationPermission === 'unsupported' ? (

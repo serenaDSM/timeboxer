@@ -6,10 +6,11 @@ final class PolicyStore {
     private(set) var policy: FamilyPolicy
     let policyURL: URL
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, directoryURL: URL? = nil) {
         let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        let directory = applicationSupport.appendingPathComponent("TimeBoxer", isDirectory: true)
+        let directory = directoryURL
+            ?? applicationSupport.appendingPathComponent("TimeBoxer", isDirectory: true)
         policyURL = directory.appendingPathComponent("family-policy.json")
         policy = .safeDefault
 
@@ -37,5 +38,14 @@ final class PolicyStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(nextPolicy).write(to: policyURL, options: .atomic)
         policy = nextPolicy
+    }
+
+    @discardableResult
+    func revokeActiveEntertainmentPermission() throws -> Bool {
+        guard policy.activeEntertainmentUntil != nil else { return false }
+        var nextPolicy = policy
+        nextPolicy.activeEntertainmentUntil = nil
+        try save(nextPolicy)
+        return true
     }
 }

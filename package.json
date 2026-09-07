@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "node --test test/*.test.js",
     "preview": "vite preview",
-    "mac:test": "swift test --package-path macos/TimeBoxerMac",
+    "auth:recovery-server": "node scripts/password-recovery-server.mjs",
+    "mac:test": "bash macos/TimeBoxerMac/scripts/test-package.sh",
     "mac:build": "bash macos/TimeBoxerMac/scripts/build-app.sh",
     "ios:build": "xcodebuild -project ios/TimeBoxerParent/TimeBoxerParent.xcodeproj -scheme TimeBoxerParent -sdk iphonesimulator -configuration Debug -derivedDataPath /private/tmp/timeboxer-parent-derived CODE_SIGNING_ALLOWED=NO build"
   },

@@ -13,6 +13,26 @@ struct CloudHeartbeatResult: Codable, Equatable, Sendable {
     let lastSeenAt: String
     let policyRevision: Int
     let policy: CloudPolicyDocument?
+    let requestUpdates: [CloudRequestUpdate]?
+}
+
+struct CloudRequestUpdate: Codable, Equatable, Sendable {
+    let id: UUID
+    let clientRequestId: UUID
+    let requestedMinutes: Int
+    let status: String
+    let requestedAt: String
+    let resolvedAt: String?
+}
+
+struct CloudDeviceEvent: Codable, Equatable, Sendable {
+    var version = 1
+    let clientEventId: UUID
+    let eventType: String
+    let severity: String
+    let subjectLabel: String?
+    let occurredAt: String
+    let payload: [String: String]
 }
 
 struct CloudPolicyDayPlan: Codable, Equatable, Sendable {
@@ -75,6 +95,35 @@ private struct HeartbeatRequest: Encodable {
     let appVersion: String
     let osVersion: String
     let knownPolicyRevision: Int
+    let applicationInventory: [InstalledApplicationRecord]?
+}
+
+private struct DeviceEventRequest: Encodable {
+    let action = "recordEvent"
+    let deviceId: UUID
+    let installationId: UUID
+    let deviceSecret: String
+    let event: CloudDeviceEvent
+}
+
+private struct ExtraTimeRequestBody: Encodable {
+    let action = "requestExtraTime"
+    let deviceId: UUID
+    let installationId: UUID
+    let deviceSecret: String
+    let clientRequestId: UUID
+    let requestedMinutes: Int
+}
+
+private struct DeviceEventResponse: Decodable {
+    let accepted: Bool
+    let duplicate: Bool
+}
+
+private struct ExtraTimeRequestResponse: Decodable {
+    let id: UUID
+    let status: String
+    let requestedMinutes: Int
 }
 
 private struct CloudDeviceCredentials {
@@ -172,7 +221,7 @@ final class CloudPairingService: @unchecked Sendable {
         return result
     }
 
-    func heartbeat() async throws -> CloudHeartbeatResult {
+    func heartbeat(applicationInventory: [InstalledApplicationRecord]? = nil) async throws -> CloudHeartbeatResult {
         guard
             let endpoint,
             let publishableKey,
@@ -192,7 +241,8 @@ final class CloudPairingService: @unchecked Sendable {
             deviceSecret: credentials.secret,
             appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0",
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            knownPolicyRevision: credentials.identity.policyRevision ?? 0
+            knownPolicyRevision: credentials.identity.policyRevision ?? 0,
+            applicationInventory: applicationInventory
         )
         let request = try configuredRequest(
             endpoint: endpoint,
@@ -211,8 +261,73 @@ final class CloudPairingService: @unchecked Sendable {
         return try JSONDecoder().decode(CloudHeartbeatResult.self, from: data)
     }
 
+    func record(event: CloudDeviceEvent) async throws {
+        let credentials = try pairedCredentials()
+        let body = DeviceEventRequest(
+            deviceId: credentials.deviceID,
+            installationId: credentials.identity.installationId,
+            deviceSecret: credentials.secret,
+            event: event
+        )
+        let _: DeviceEventResponse = try await sendPairedRequest(body)
+    }
+
+    func requestExtraTime(clientRequestID: UUID, minutes: Int) async throws {
+        let credentials = try pairedCredentials()
+        let body = ExtraTimeRequestBody(
+            deviceId: credentials.deviceID,
+            installationId: credentials.identity.installationId,
+            deviceSecret: credentials.secret,
+            clientRequestId: clientRequestID,
+            requestedMinutes: minutes
+        )
+        let _: ExtraTimeRequestResponse = try await sendPairedRequest(body)
+    }
+
     func acknowledgePolicyRevision(_ revision: Int) throws {
         try store.savePolicyRevision(revision)
+    }
+
+    private func pairedCredentials() throws -> (
+        identity: CloudDeviceIdentity,
+        deviceID: UUID,
+        secret: String
+    ) {
+        guard
+            let credentials = store.loadPairedCredentials(),
+            let deviceID = credentials.identity.deviceId
+        else {
+            throw CloudPairingError.invalidResponse
+        }
+        return (credentials.identity, deviceID, credentials.secret)
+    }
+
+    private func sendPairedRequest<Body: Encodable, Result: Decodable>(
+        _ body: Body
+    ) async throws -> Result {
+        guard
+            let endpoint,
+            let publishableKey,
+            publishableKey.hasPrefix("sb_publishable_"),
+            let gatewayToken,
+            gatewayToken.split(separator: ".").count == 3
+        else {
+            throw CloudPairingError.configurationMissing
+        }
+        let request = try configuredRequest(
+            endpoint: endpoint,
+            bodyData: JSONEncoder().encode(body)
+        )
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CloudPairingError.invalidResponse
+        }
+        guard 200..<300 ~= httpResponse.statusCode else {
+            let message = (try? JSONDecoder().decode(PairingErrorResponse.self, from: data).error)
+                ?? "The TimeBoxer cloud request was rejected."
+            throw CloudPairingError.server(message)
+        }
+        return try JSONDecoder().decode(Result.self, from: data)
     }
 
     private func configuredRequest(endpoint: URL, bodyData: Data) throws -> URLRequest {
@@ -231,18 +346,31 @@ final class CloudPairingService: @unchecked Sendable {
 }
 
 private final class CloudDeviceStore {
-    private static let keychainService = "nz.co.timeboxer.mac.device"
+    // Data Protection Keychain access is tied to the stable app identifier,
+    // not an ad-hoc pilot build's changing code hash. This keeps device
+    // credentials available when a tester installs a newer build.
+    private static let keychainService = "nz.co.timeboxer.mac.device.v2"
+    private struct LocalPilotCredential: Codable {
+        let account: String
+        let secret: Data
+    }
+
     private let identityURL: URL
+    private let pilotCredentialURL: URL
+    private let fileManager: FileManager
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private let lock = NSLock()
 
     init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
         let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
         let directory = support.appendingPathComponent("TimeBoxer", isDirectory: true)
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         identityURL = directory.appendingPathComponent("cloud-device.json")
+        pilotCredentialURL = directory.appendingPathComponent("cloud-device-pilot-credential.json")
     }
 
     var isPaired: Bool {
@@ -323,12 +451,25 @@ private final class CloudDeviceStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.keychainService,
             kSecAttrAccount as String: account,
+            kSecUseDataProtectionKeychain as String: true,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
-        return item as? Data
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecSuccess { return item as? Data }
+
+        // Ad-hoc pilot builds do not have a provisioning profile that can
+        // authorize Data Protection Keychain entitlements. Keep the random
+        // device credential in a separate current-user-only file so an app
+        // update cannot strand a paired test Mac. Distribution builds use
+        // the keychain path above.
+        guard
+            let data = try? Data(contentsOf: pilotCredentialURL),
+            let credential = try? decoder.decode(LocalPilotCredential.self, from: data),
+            credential.account == account
+        else { return nil }
+        return credential.secret
     }
 
     private func saveSecret(_ secret: Data, account: String) throws {
@@ -336,16 +477,41 @@ private final class CloudDeviceStore {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: Self.keychainService,
             kSecAttrAccount as String: account,
+            kSecUseDataProtectionKeychain as String: true,
         ]
         let attributes = [kSecValueData as String: secret]
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecSuccess { return }
+        if updateStatus == errSecSuccess {
+            try? fileManager.removeItem(at: pilotCredentialURL)
+            return
+        }
+        if updateStatus == errSecMissingEntitlement {
+            try savePilotCredential(secret, account: account)
+            return
+        }
         guard updateStatus == errSecItemNotFound else { throw CloudPairingError.keychain(updateStatus) }
 
         var insert = query
         insert[kSecValueData as String] = secret
         insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let insertStatus = SecItemAdd(insert as CFDictionary, nil)
-        guard insertStatus == errSecSuccess else { throw CloudPairingError.keychain(insertStatus) }
+        if insertStatus == errSecSuccess {
+            try? fileManager.removeItem(at: pilotCredentialURL)
+            return
+        }
+        if insertStatus == errSecMissingEntitlement {
+            try savePilotCredential(secret, account: account)
+            return
+        }
+        throw CloudPairingError.keychain(insertStatus)
+    }
+
+    private func savePilotCredential(_ secret: Data, account: String) throws {
+        let credential = LocalPilotCredential(account: account, secret: secret)
+        try JSONEncoder().encode(credential).write(to: pilotCredentialURL, options: .atomic)
+        try fileManager.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: pilotCredentialURL.path
+        )
     }
 }

@@ -14,8 +14,8 @@ const ALERT_METADATA = {
   },
   blocked: {
     level: 'critical',
-    title: 'Entertainment blocked',
-    browserTitle: 'TimeBoxer blocked entertainment',
+    title: 'Focus shield activated',
+    browserTitle: 'TimeBoxer focus shield alert',
   },
   request: {
     level: 'action',

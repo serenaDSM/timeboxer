@@ -1,17 +1,15 @@
-import {
-  BookOpen,
-  ChevronRight,
-  Dumbbell,
-  Gamepad2,
-  Hourglass,
-  LockKeyhole,
-  Moon,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  TimerReset,
-  Tv,
-} from 'lucide-react';
+import BookOpen from 'lucide-react/dist/esm/icons/book-open.js';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.js';
+import Dumbbell from 'lucide-react/dist/esm/icons/dumbbell.js';
+import Gamepad2 from 'lucide-react/dist/esm/icons/gamepad-2.js';
+import Hourglass from 'lucide-react/dist/esm/icons/hourglass.js';
+import LockKeyhole from 'lucide-react/dist/esm/icons/lock-keyhole.js';
+import Moon from 'lucide-react/dist/esm/icons/moon.js';
+import Settings from 'lucide-react/dist/esm/icons/settings.js';
+import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.js';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles.js';
+import TimerReset from 'lucide-react/dist/esm/icons/timer-reset.js';
+import Tv from 'lucide-react/dist/esm/icons/tv.js';
 import { DAY_TYPES } from '../policy.js';
 import BrandLogo from './BrandLogo.jsx';
 
@@ -123,7 +121,7 @@ export default function ChildDashboard({
               <h2 className="mt-1 text-2xl font-black tracking-tight">Use your time</h2>
               <div className="mt-1 text-sm text-slate-400">Maximum {policy.maxSessionMinutes} min at once</div>
               <div className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                <ShieldCheck size={16} /> Entertainment apps and selected websites unlock only while a Play timer is running.
+                <ShieldCheck size={16} /> Start a Play timer first. Outside Play time, TimeBoxer covers the screen, sounds an alarm, and notifies your parent.
               </div>
             </div>
             <div className="space-y-3">

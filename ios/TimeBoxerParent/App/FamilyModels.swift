@@ -43,6 +43,15 @@ struct FamilyAlert: Identifiable, Equatable, Sendable {
     var isRead: Bool
 }
 
+struct DetectedApplication: Codable, Identifiable, Equatable, Sendable {
+    var bundleIdentifier: String
+    var name: String
+    var category: String?
+    var recommended: Bool
+
+    var id: String { bundleIdentifier }
+}
+
 struct PairingSession: Equatable, Sendable {
     var code: String
     var expiresAt: Date
@@ -117,8 +126,21 @@ struct FamilyPolicyDocument: Codable, Equatable, Sendable {
         cooldownTriggerMinutes: 20,
         bedtimeBufferMinutes: 60,
         earnTasks: [],
-        protectedApplications: [],
-        protectedDomains: [],
+        protectedApplications: [
+            "com.apple.TV",
+            "com.bilibili.bilibiliPC",
+            "com.iqiyi.player",
+            "com.mgtv.pcclientx",
+            "com.valvesoftware.steam",
+            "com.roblox.Roblox",
+            "com.mojang.minecraftlauncher",
+            "com.tencent.tenvideo",
+        ],
+        protectedDomains: [
+            "youtube.com", "tiktok.com", "twitch.tv", "netflix.com", "disneyplus.com",
+            "bilibili.com", "iqiyi.com", "v.qq.com", "mgtv.com", "youku.com",
+            "roblox.com", "poki.com", "crazygames.com", "miniclip.com", "now.gg",
+        ],
         todayPlan: nil,
         todayPlanDate: nil,
         parentBonusMinutes: nil,
@@ -137,6 +159,8 @@ struct ParentDashboardSnapshot: Equatable, Sendable {
     var alerts: [FamilyAlert]
     var policy: FamilyPolicy
     var currentDayPlan: FamilyDayPlan
+    var applications: [DetectedApplication]
+    var applicationInventoryScannedAt: Date?
 
     static let preview = ParentDashboardSnapshot(
         device: ChildDeviceSummary(
@@ -168,7 +192,16 @@ struct ParentDashboardSnapshot: Equatable, Sendable {
             ),
         ],
         policy: FamilyPolicy(revision: 1, document: .balanced),
-        currentDayPlan: .school
+        currentDayPlan: .school,
+        applications: [
+            DetectedApplication(
+                bundleIdentifier: "com.roblox.Roblox",
+                name: "Roblox",
+                category: "public.app-category.games",
+                recommended: true
+            ),
+        ],
+        applicationInventoryScannedAt: .now
     )
 }
 

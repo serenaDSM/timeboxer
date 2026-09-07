@@ -6,7 +6,8 @@ if (!databaseURL) throw new Error("SUPABASE_DB_URL is unavailable");
 const sql = postgres(databaseURL, { prepare: false, max: 1 });
 
 type PairingBody = {
-  action?: "bootstrap" | "create" | "consume" | "heartbeat" | "updatePolicy";
+  action?: "bootstrap" | "create" | "consume" | "heartbeat" | "updatePolicy" |
+    "recordEvent" | "requestExtraTime" | "resolveRequest";
   childId?: string;
   deviceId?: string;
   deviceSecret?: string;
@@ -19,6 +20,12 @@ type PairingBody = {
   expectedRevision?: number;
   policyDocument?: unknown;
   knownPolicyRevision?: number;
+  applicationInventory?: unknown;
+  event?: unknown;
+  clientRequestId?: string;
+  requestedMinutes?: number;
+  requestId?: string;
+  approved?: boolean;
 };
 
 type GatewayClaims = {
@@ -144,6 +151,105 @@ function validPolicyDocument(value: unknown): value is Record<string, unknown> {
     return false;
   }
   return true;
+}
+
+type DeviceApplication = {
+  bundleIdentifier: string;
+  name: string;
+  category?: string;
+  recommended: boolean;
+};
+
+function validApplicationInventory(value: unknown): value is DeviceApplication[] {
+  if (!Array.isArray(value) || value.length > 500) return false;
+  const bundleIdentifiers = new Set<string>();
+  for (const item of value) {
+    const application = objectValue(item);
+    if (
+      !application ||
+      typeof application.bundleIdentifier !== "string" ||
+      application.bundleIdentifier.length < 1 ||
+      application.bundleIdentifier.length > 255 ||
+      !/^[a-z0-9.-]+$/i.test(application.bundleIdentifier) ||
+      typeof application.name !== "string" ||
+      application.name.trim().length < 1 ||
+      application.name.length > 120 ||
+      typeof application.recommended !== "boolean" ||
+      (application.category !== undefined && (
+        typeof application.category !== "string" || application.category.length > 255
+      ))
+    ) return false;
+    if (bundleIdentifiers.has(application.bundleIdentifier)) return false;
+    bundleIdentifiers.add(application.bundleIdentifier);
+  }
+  return true;
+}
+
+type DeviceEvent = {
+  version: 1;
+  clientEventId: string;
+  eventType: string;
+  severity: string;
+  subjectLabel?: string;
+  occurredAt: string;
+  payload?: Record<string, unknown>;
+};
+
+const deviceEventTypes = new Set([
+  "device_online", "device_offline", "app_blocked", "website_blocked",
+  "earn_started", "earn_completed", "earn_stopped", "play_started",
+  "play_ended", "request_created", "policy_applied",
+]);
+const deviceEventSeverities = new Set(["info", "action", "violation"]);
+const invasiveEventTerms = ["screenshot", "keystroke", "pagecontent", "clipboard", "browserhistory"];
+
+function validDeviceEvent(value: unknown): value is DeviceEvent {
+  const event = objectValue(value);
+  const payload = event?.payload === undefined ? {} : objectValue(event.payload);
+  if (
+    !event || event.version !== 1 ||
+    typeof event.clientEventId !== "string" || !uuidPattern.test(event.clientEventId) ||
+    typeof event.eventType !== "string" || !deviceEventTypes.has(event.eventType) ||
+    typeof event.severity !== "string" || !deviceEventSeverities.has(event.severity) ||
+    typeof event.occurredAt !== "string" ||
+    (event.subjectLabel !== undefined && (
+      typeof event.subjectLabel !== "string" || event.subjectLabel.length > 160
+    )) ||
+    !payload || Object.keys(payload).length > 20
+  ) return false;
+
+  const occurredAt = Date.parse(event.occurredAt);
+  const now = Date.now();
+  if (!Number.isFinite(occurredAt) || occurredAt < now - 7 * 86_400_000 || occurredAt > now + 300_000) {
+    return false;
+  }
+  const serialized = JSON.stringify(payload);
+  if (new TextEncoder().encode(serialized).length > 4096) return false;
+  const normalized = serialized.toLowerCase();
+  return invasiveEventTerms.every((term) => !normalized.includes(term));
+}
+
+async function authenticatedDevice(body: PairingBody): Promise<{ id: string; childId: string } | null> {
+  const deviceID = body.deviceId?.trim() ?? "";
+  const installationID = body.installationId?.trim() ?? "";
+  const secret = base64ToBytes(body.deviceSecret ?? "");
+  if (!uuidPattern.test(deviceID) || !uuidPattern.test(installationID) || !secret || secret.length !== 32) {
+    return null;
+  }
+  const secretDigest = await sha256Hex(secret);
+  const devices = await sql`
+    select device.id, device.child_id
+    from public.child_devices device
+    join private.device_credentials credential on credential.device_id = device.id
+    where device.id = ${deviceID}::uuid
+      and device.installation_id = ${installationID}::uuid
+      and device.revoked_at is null
+      and credential.revoked_at is null
+      and credential.secret_digest = decode(${secretDigest}, 'hex')
+    limit 1
+  `;
+  if (devices.length !== 1) return null;
+  return { id: devices[0].id, childId: devices[0].child_id };
 }
 
 async function sha256Hex(value: string | Uint8Array): Promise<string> {
@@ -294,6 +400,95 @@ async function updatePolicy(body: PairingBody, userID: string): Promise<Response
   return json({ revision: Number(updated[0].revision), document: updated[0].document });
 }
 
+async function resolveExtraTimeRequest(body: PairingBody, userID: string): Promise<Response> {
+  const requestID = body.requestId?.trim() ?? "";
+  if (!uuidPattern.test(requestID) || typeof body.approved !== "boolean") {
+    return json({ error: "A valid request decision is required." }, 400);
+  }
+
+  const result = await sql.begin(async (transaction) => {
+    const requests = await transaction`
+      select
+        request.id,
+        request.client_request_id,
+        request.child_id,
+        request.device_id,
+        request.requested_minutes,
+        request.status,
+        to_char(now() at time zone child.timezone, 'YYYY-MM-DD') as local_date
+      from public.extra_time_requests request
+      join public.children child on child.id = request.child_id
+      join public.family_members member on member.family_id = child.family_id
+      where request.id = ${requestID}::uuid
+        and member.user_id = ${userID}::uuid
+        and child.archived_at is null
+      for update of request
+    `;
+    if (requests.length !== 1) return null;
+
+    const request = requests[0];
+    if (request.status !== "pending") {
+      return { id: request.id, status: request.status, policy: null };
+    }
+
+    const status = body.approved ? "approved" : "declined";
+    await transaction`
+      update public.extra_time_requests
+      set status = ${status}, resolved_at = now(), resolved_by = ${userID}::uuid
+      where id = ${request.id}::uuid
+    `;
+
+    let policy: Record<string, unknown> | null = null;
+    if (body.approved) {
+      const policies = await transaction`
+        update public.family_policies
+        set
+          document = jsonb_set(
+            jsonb_set(document, '{parentBonusDate}', to_jsonb(${request.local_date}::text), true),
+            '{parentBonusMinutes}',
+            to_jsonb(least(
+              120,
+              (
+                case
+                  when document ->> 'parentBonusDate' = ${request.local_date}
+                    then coalesce((document ->> 'parentBonusMinutes')::integer, 0)
+                  else 0
+                end
+              ) + ${Number(request.requested_minutes)}
+            )),
+            true
+          ),
+          revision = revision + 1,
+          updated_by = ${userID}::uuid,
+          updated_at = now()
+        where child_id = ${request.child_id}::uuid
+        returning revision, document
+      `;
+      policy = policies[0]
+        ? { revision: Number(policies[0].revision), document: policies[0].document }
+        : null;
+    }
+
+    await transaction`
+      insert into public.activity_events (
+        client_event_id, child_id, device_id, event_type, severity,
+        subject_label, payload, occurred_at
+      ) values (
+        gen_random_uuid(), ${request.child_id}::uuid, ${request.device_id}::uuid,
+        'request_resolved', 'info',
+        ${body.approved ? "Extra time approved" : "Extra time declined"},
+        ${sql.json({ status, requestedMinutes: Number(request.requested_minutes) })},
+        now()
+      )
+    `;
+
+    return { id: request.id, status, policy };
+  });
+
+  if (!result) return json({ error: "The request was not found in this family." }, 404);
+  return json(result);
+}
+
 async function consumePairing(body: PairingBody): Promise<Response> {
   const code = body.code?.replace(/\s/g, "") ?? "";
   const installationID = body.installationId?.trim() ?? "";
@@ -410,14 +605,29 @@ async function heartbeatDevice(body: PairingBody): Promise<Response> {
   if (!secret || secret.length !== 32) {
     return json({ error: "Valid device credentials are required." }, 401);
   }
+  const hasApplicationInventory = body.applicationInventory !== undefined;
+  if (hasApplicationInventory && !validApplicationInventory(body.applicationInventory)) {
+    return json({ error: "The application inventory is invalid." }, 400);
+  }
 
   const secretDigest = await sha256Hex(secret);
+  const applicationInventory = hasApplicationInventory
+    ? body.applicationInventory as DeviceApplication[]
+    : [];
   const devices = await sql`
     update public.child_devices as device
     set
       last_seen_at = now(),
       app_version = coalesce(${body.appVersion ?? null}, device.app_version),
       os_version = coalesce(${body.osVersion ?? null}, device.os_version),
+      application_inventory = case
+        when ${hasApplicationInventory} then ${sql.json(applicationInventory)}
+        else device.application_inventory
+      end,
+      application_inventory_scanned_at = case
+        when ${hasApplicationInventory} then now()
+        else device.application_inventory_scanned_at
+      end,
       updated_at = now()
     from private.device_credentials as credential
     where device.id = ${deviceID}::uuid
@@ -456,6 +666,107 @@ async function heartbeatDevice(body: PairingBody): Promise<Response> {
     lastSeenAt: devices[0].last_seen_at,
     policyRevision,
     policy: policyRevision > knownPolicyRevision ? policies[0]?.document ?? null : null,
+    requestUpdates: (await sql`
+      select id, client_request_id, requested_minutes, status, requested_at, resolved_at
+      from public.extra_time_requests
+      where device_id = ${devices[0].id}::uuid
+        and requested_at > now() - interval '7 days'
+      order by requested_at desc
+      limit 20
+    `).map((request) => ({
+      id: request.id,
+      clientRequestId: request.client_request_id,
+      requestedMinutes: Number(request.requested_minutes),
+      status: request.status,
+      requestedAt: request.requested_at,
+      resolvedAt: request.resolved_at,
+    })),
+  });
+}
+
+async function recordDeviceEvent(body: PairingBody): Promise<Response> {
+  if (!validDeviceEvent(body.event)) return json({ error: "The device event is invalid." }, 400);
+  const device = await authenticatedDevice(body);
+  if (!device) return json({ error: "Valid device credentials are required." }, 401);
+  const event = body.event;
+  const rows = await sql`
+    insert into public.activity_events (
+      client_event_id, child_id, device_id, event_type, severity,
+      subject_label, payload, occurred_at
+    ) values (
+      ${event.clientEventId}::uuid, ${device.childId}::uuid, ${device.id}::uuid,
+      ${event.eventType}, ${event.severity}, ${event.subjectLabel ?? null},
+      ${sql.json(event.payload ?? {})}, ${event.occurredAt}::timestamptz
+    )
+    on conflict (device_id, client_event_id) do nothing
+    returning id
+  `;
+  return json({ accepted: rows.length === 1, duplicate: rows.length === 0 });
+}
+
+async function requestExtraTime(body: PairingBody): Promise<Response> {
+  const clientRequestID = body.clientRequestId?.trim() ?? "";
+  if (!uuidPattern.test(clientRequestID) || !integerInRange(body.requestedMinutes, 1, 60)) {
+    return json({ error: "The extra-time request is invalid." }, 400);
+  }
+  const device = await authenticatedDevice(body);
+  if (!device) return json({ error: "Valid device credentials are required." }, 401);
+  const requestedMinutes = Number(body.requestedMinutes);
+
+  const result = await sql.begin(async (transaction) => {
+    await transaction`
+      select id from public.child_devices where id = ${device.id}::uuid for update
+    `;
+    await transaction`
+      update public.extra_time_requests
+      set status = 'expired', resolved_at = now()
+      where device_id = ${device.id}::uuid
+        and status = 'pending'
+        and requested_at < now() - interval '24 hours'
+    `;
+    const duplicate = await transaction`
+      select id, status, requested_minutes
+      from public.extra_time_requests
+      where device_id = ${device.id}::uuid
+        and client_request_id = ${clientRequestID}::uuid
+      limit 1
+    `;
+    if (duplicate.length === 1) return duplicate[0];
+
+    const pending = await transaction`
+      select id, status, requested_minutes
+      from public.extra_time_requests
+      where device_id = ${device.id}::uuid and status = 'pending'
+      limit 1
+    `;
+    if (pending.length === 1) return pending[0];
+
+    const requests = await transaction`
+      insert into public.extra_time_requests (
+        client_request_id, child_id, device_id, requested_minutes
+      ) values (
+        ${clientRequestID}::uuid, ${device.childId}::uuid, ${device.id}::uuid, ${requestedMinutes}
+      )
+      returning id, status, requested_minutes
+    `;
+    await transaction`
+      insert into public.activity_events (
+        client_event_id, child_id, device_id, event_type, severity,
+        subject_label, payload, occurred_at
+      ) values (
+        ${clientRequestID}::uuid, ${device.childId}::uuid, ${device.id}::uuid,
+        'request_created', 'action', 'Extra time requested',
+        ${sql.json({ requestedMinutes })}, now()
+      )
+      on conflict (device_id, client_event_id) do nothing
+    `;
+    return requests[0];
+  });
+
+  return json({
+    id: result.id,
+    status: result.status,
+    requestedMinutes: Number(result.requested_minutes),
   });
 }
 
@@ -483,6 +794,7 @@ export default {
       }
       if (body.action === "create") return createPairing(body, userID);
       if (body.action === "updatePolicy") return updatePolicy(body, userID);
+      if (body.action === "resolveRequest") return resolveExtraTimeRequest(body, userID);
       return json({ error: "Parent action required." }, 403);
     }
 
@@ -491,6 +803,8 @@ export default {
     }
     if (body.action === "consume") return consumePairing(body);
     if (body.action === "heartbeat") return heartbeatDevice(body);
+    if (body.action === "recordEvent") return recordDeviceEvent(body);
+    if (body.action === "requestExtraTime") return requestExtraTime(body);
     return json({ error: "Mac action required." }, 403);
   },
 };

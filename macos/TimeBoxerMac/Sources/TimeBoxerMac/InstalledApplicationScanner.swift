@@ -20,6 +20,12 @@ struct InstalledApplicationRecord: Codable, Equatable, Sendable {
 }
 
 enum InstalledApplicationScanner {
+    static func recommendedBundleIdentifiers(
+        in applications: [InstalledApplicationRecord]
+    ) -> Set<String> {
+        Set(applications.lazy.filter(\.recommended).map(\.bundleIdentifier))
+    }
+
     static func scan(
         fileManager: FileManager = .default,
         directories: [URL]? = nil
@@ -64,7 +70,9 @@ enum InstalledApplicationScanner {
 
         return recordsByBundleIdentifier.values.sorted {
             if $0.recommended != $1.recommended { return $0.recommended && !$1.recommended }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            let nameOrder = $0.name.localizedCaseInsensitiveCompare($1.name)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            return $0.bundleIdentifier < $1.bundleIdentifier
         }
     }
 

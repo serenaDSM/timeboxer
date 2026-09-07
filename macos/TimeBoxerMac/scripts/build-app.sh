@@ -12,6 +12,7 @@ STAGING_DIRECTORY="$(mktemp -d /private/tmp/timeboxer-app-build.XXXXXX)"
 trap 'rm -rf "$STAGING_DIRECTORY"' EXIT
 APP_ROOT="$STAGING_DIRECTORY/TimeBoxer.app"
 CONTENTS="$APP_ROOT/Contents"
+SWIFT_PACKAGE_ROOT="$STAGING_DIRECTORY/SwiftPackage"
 
 if [[ -n "${DEVELOPER_DIR:-}" ]]; then
   XCODE_DEVELOPER_DIR="$DEVELOPER_DIR"
@@ -44,8 +45,15 @@ elif [[ ! -f "$PROJECT_ROOT/dist-child/index.html" ]]; then
   exit 2
 fi
 
+# Documents may be backed by a File Provider. Compile a metadata-free local
+# snapshot so provider hydration cannot change a Swift input mid-build.
+mkdir -p "$SWIFT_PACKAGE_ROOT"
+cp "$MAC_ROOT/Package.swift" "$SWIFT_PACKAGE_ROOT/Package.swift"
+cp -R "$MAC_ROOT/Sources" "$SWIFT_PACKAGE_ROOT/Sources"
+cp -R "$MAC_ROOT/Tests" "$SWIFT_PACKAGE_ROOT/Tests"
+
 SWIFT_BUILD_ARGS=(
-  build -c release --jobs 1 --disable-index-store --package-path "$MAC_ROOT"
+  build -c release --jobs 1 --disable-index-store --package-path "$SWIFT_PACKAGE_ROOT"
   -Xswiftc -num-threads -Xswiftc 1
   -Xswiftc -module-cache-path -Xswiftc /private/tmp/timeboxer-swift-module-cache
 )
@@ -55,7 +63,7 @@ fi
 "$SWIFT_BIN" "${SWIFT_BUILD_ARGS[@]}"
 
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources/WebApp"
-cp "$MAC_ROOT/.build/release/TimeBoxerMac" "$CONTENTS/MacOS/TimeBoxerMac"
+cp "$SWIFT_PACKAGE_ROOT/.build/release/TimeBoxerMac" "$CONTENTS/MacOS/TimeBoxerMac"
 cp "$MAC_ROOT/App/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$PROJECT_ROOT/dist-child/." "$CONTENTS/Resources/WebApp/"
 node "$SCRIPT_DIR/inline-web-assets.mjs" "$CONTENTS/Resources/WebApp"

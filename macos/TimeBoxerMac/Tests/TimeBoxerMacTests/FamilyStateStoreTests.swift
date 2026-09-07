@@ -3,6 +3,14 @@ import XCTest
 @testable import TimeBoxerMac
 
 final class FamilyStateStoreTests: XCTestCase {
+    func testKnownDefaultPINIsNeverAcceptedForProtectionChanges() {
+        XCTAssertFalse(ParentPINPolicy.isSecure(nil))
+        XCTAssertFalse(ParentPINPolicy.isSecure("1234"))
+        XCTAssertFalse(ParentPINPolicy.isSecure("abcd"))
+        XCTAssertTrue(ParentPINPolicy.isSecure("2468"))
+        XCTAssertTrue(ParentPINPolicy.isSecure("135790"))
+    }
+
     func testSavesOneVersionedEnvelopeForBothClients() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("timeboxer-family-state-\(UUID().uuidString)", isDirectory: true)

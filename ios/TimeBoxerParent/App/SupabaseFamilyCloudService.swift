@@ -22,6 +22,15 @@ actor SupabaseFamilyCloudService: FamilyCloudService {
         let expectedRevision: Int
         let policyDocument: FamilyPolicyDocument
     }
+    private struct ResolveRequestBody: Encodable {
+        let action = "resolveRequest"
+        let requestId: UUID
+        let approved: Bool
+    }
+    private struct ResolveRequestResponse: Decodable {
+        let id: UUID
+        let status: String
+    }
     private struct PolicyRow: Decodable {
         let revision: Int
         let document: FamilyPolicyDocument
@@ -31,12 +40,16 @@ actor SupabaseFamilyCloudService: FamilyCloudService {
         let displayName: String
         let lastSeenAt: Date?
         let revokedAt: Date?
+        let applicationInventory: [DetectedApplication]
+        let applicationInventoryScannedAt: Date?
 
         enum CodingKeys: String, CodingKey {
             case id
             case displayName = "display_name"
             case lastSeenAt = "last_seen_at"
             case revokedAt = "revoked_at"
+            case applicationInventory = "application_inventory"
+            case applicationInventoryScannedAt = "application_inventory_scanned_at"
         }
     }
     private struct RequestRow: Decodable {
@@ -63,18 +76,6 @@ actor SupabaseFamilyCloudService: FamilyCloudService {
             case occurredAt = "occurred_at"
         }
     }
-    private struct ResolveRequestUpdate: Encodable {
-        let status: String
-        let resolvedAt: Date
-        let resolvedBy: UUID
-
-        enum CodingKeys: String, CodingKey {
-            case status
-            case resolvedAt = "resolved_at"
-            case resolvedBy = "resolved_by"
-        }
-    }
-
     private let client: SupabaseClient
     private var bootstrap: BootstrapResponse?
 
@@ -87,7 +88,7 @@ actor SupabaseFamilyCloudService: FamilyCloudService {
         let database = try await authenticatedDatabase()
         let devices: [DeviceRow] = try await database
             .from("child_devices")
-            .select("id, display_name, last_seen_at, revoked_at")
+            .select("id, display_name, last_seen_at, revoked_at, application_inventory, application_inventory_scanned_at")
             .eq("child_id", value: family.childId)
             .is("revoked_at", value: nil)
             .order("last_seen_at", ascending: false)
@@ -171,34 +172,31 @@ actor SupabaseFamilyCloudService: FamilyCloudService {
                 let label = $0.subjectLabel ?? (website ? "A website" : "An app")
                 return FamilyAlert(
                     id: $0.id,
-                    title: "\(label) was blocked",
+                    title: "\(label) activated the focus shield",
                     detail: website
-                        ? "The child Mac blocked a protected website outside Play time."
-                        : "The child Mac blocked an entertainment app outside Play time.",
+                        ? "The child Mac covered the screen, sounded an alarm, and recorded the protected website activity."
+                        : "The child Mac covered the screen, sounded an alarm, and recorded the entertainment app activity.",
                     createdAt: $0.occurredAt,
                     severity: .violation,
                     isRead: false
                 )
             },
             policy: policy,
-            currentDayPlan: currentDayPlan
+            currentDayPlan: currentDayPlan,
+            applications: device?.applicationInventory ?? [],
+            applicationInventoryScannedAt: device?.applicationInventoryScannedAt
         )
     }
 
     func resolveRequest(id: UUID, approved: Bool) async throws {
         let identity = try await authenticatedIdentity()
-        let database = client.schema("public").setAuth(identity.accessToken)
-        try await database
-            .from("extra_time_requests")
-            .update(
-                ResolveRequestUpdate(
-                    status: approved ? "approved" : "declined",
-                    resolvedAt: .now,
-                    resolvedBy: identity.userID
-                )
+        client.functions.setAuth(token: identity.accessToken)
+        let _: ResolveRequestResponse = try await client.functions.invoke(
+            "timeboxer-pairing",
+            options: FunctionInvokeOptions(
+                body: ResolveRequestBody(requestId: id, approved: approved)
             )
-            .eq("id", value: id)
-            .execute()
+        )
     }
 
     func createPairingSession() async throws -> PairingSession {

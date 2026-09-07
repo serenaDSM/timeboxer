@@ -37,4 +37,56 @@ final class EntertainmentClassificationTests: XCTestCase {
             category: "public.app-category.education"
         ))
     }
+
+    func testApplicationInventoryHasStableBundleIdentifierTieBreak() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        for bundleIdentifier in ["com.example.zeta", "com.example.alpha"] {
+            let contents = root
+                .appendingPathComponent("\(bundleIdentifier).app", isDirectory: true)
+                .appendingPathComponent("Contents", isDirectory: true)
+            try fileManager.createDirectory(at: contents, withIntermediateDirectories: true)
+            let info: [String: Any] = [
+                "CFBundleIdentifier": bundleIdentifier,
+                "CFBundleName": "Same name",
+                "LSApplicationCategoryType": "public.app-category.productivity",
+            ]
+            let plist = try PropertyListSerialization.data(
+                fromPropertyList: info,
+                format: .xml,
+                options: 0
+            )
+            try plist.write(to: contents.appendingPathComponent("Info.plist"))
+        }
+
+        let first = InstalledApplicationScanner.scan(directories: [root])
+        let second = InstalledApplicationScanner.scan(directories: [root])
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.map(\.bundleIdentifier), ["com.example.alpha", "com.example.zeta"])
+    }
+
+    func testStandaloneProtectionUsesEveryDetectedRecommendedGame() {
+        let applications = [
+            InstalledApplicationRecord(
+                bundleIdentifier: "com.example.game",
+                name: "Example Game",
+                category: "public.app-category.strategy-games",
+                recommended: true
+            ),
+            InstalledApplicationRecord(
+                bundleIdentifier: "com.example.homework",
+                name: "Homework",
+                category: "public.app-category.education",
+                recommended: false
+            ),
+        ]
+
+        XCTAssertEqual(
+            InstalledApplicationScanner.recommendedBundleIdentifiers(in: applications),
+            ["com.example.game"]
+        )
+    }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Security
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -7,7 +8,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let ruleEngine = RuleEngine()
     private let loginItemManager = LoginItemManager()
     private let cloudPairingService = CloudPairingService()
-    private lazy var monitor = ApplicationMonitor(policyStore: policyStore, ruleEngine: ruleEngine)
+    private lazy var monitor = ApplicationMonitor(
+        policyStore: policyStore,
+        ruleEngine: ruleEngine,
+        shouldAutoProtectDetectedEntertainment: { [weak self] in
+            self?.cloudPairingService.isPaired == false
+        }
+    )
     private let shieldController = ShieldWindowController()
     private let webController = WebWindowController()
     private var statusItem: NSStatusItem?
@@ -15,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var applicationInventoryTimer: Timer?
     private var cloudHeartbeatTimer: Timer?
     private var cloudHeartbeatInFlight = false
+    private var pendingCloudApplicationInventory: [InstalledApplicationRecord]?
+    private var pendingCloudEvents: [CloudDeviceEvent] = []
+    private var cloudEventInFlight = false
+    private var pendingCloudExtraTimeRequests: [UUID: Int] = [:]
+    private var cloudExtraTimeRequestInFlight = false
     private var lastDeliveredFamilyRevision = 0
     private var lastFamilyHeartbeatAt = Date.distantPast
     private var lastApplicationInventoryFingerprint = Data()
@@ -25,10 +37,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         connectComponents()
         enableLoginProtection()
         startFamilyStateSync()
+        restorePendingCloudExtraTimeRequests()
         startCloudHeartbeat()
+        revokeStalePlaySession()
+        ensureAlertOnlyMode()
+        publishInstalledApplications()
         monitor.start()
         webController.show(.child)
-        publishInstalledApplications()
         applicationInventoryTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.publishInstalledApplications()
@@ -59,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        endPlaySession()
         monitor.stop()
         familySyncTimer?.invalidate()
         familySyncTimer = nil
@@ -78,34 +94,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func connectComponents() {
-        monitor.onBlockedApplication = { [weak self] application, reason, mode in
-            self?.webController.sendNativeEvent(type: "application-blocked", payload: [
-                "bundleIdentifier": application.bundleIdentifier ?? "unknown",
-                "applicationName": application.localizedName ?? "Entertainment app",
-                "mode": mode.rawValue,
-                "message": "\(application.localizedName ?? "An entertainment app") was \(mode == .enforce ? "blocked" : "observed"): \(reason.title).",
-            ])
-            guard mode == .enforce else { return }
+        monitor.onBlockedApplication = { [weak self] application, reason, mode, shouldNotifyParent in
+            if shouldNotifyParent {
+                self?.webController.sendNativeEvent(type: "application-blocked", payload: [
+                    "bundleIdentifier": application.bundleIdentifier ?? "unknown",
+                    "applicationName": application.localizedName ?? "Entertainment app",
+                    "mode": mode.rawValue,
+                    "message": "\(application.localizedName ?? "An entertainment app") triggered the TimeBoxer shield outside approved Play time: \(reason.title).",
+                ])
+                self?.enqueueCloudViolation(
+                    eventType: "app_blocked",
+                    subjectLabel: application.localizedName ?? "Entertainment app",
+                    payload: [
+                        "bundleIdentifier": application.bundleIdentifier ?? "unknown",
+                        "reason": reason.title,
+                        "response": mode.shouldTerminateEntertainment ? "blocked" : "shielded",
+                    ]
+                )
+            }
             self?.shieldController.show(
                 applicationName: application.localizedName ?? "Entertainment app",
-                reason: reason
+                reason: reason,
+                mode: mode
             )
         }
 
-        monitor.onBlockedWebsite = { [weak self] application, host, reason, mode in
+        monitor.onBlockedWebsite = { [weak self] application, host, reason, mode, shouldNotifyParent in
             let browserName = application.localizedName ?? "Browser"
             let contentName = host ?? "Browser supervision"
-            self?.webController.sendNativeEvent(type: "application-blocked", payload: [
-                "bundleIdentifier": application.bundleIdentifier ?? "unknown",
-                "applicationName": browserName,
-                "host": host ?? "unknown",
-                "mode": mode.rawValue,
-                "message": "\(contentName) in \(browserName) was \(mode == .enforce ? "blocked" : "observed"): \(reason.title).",
-            ])
-            guard mode == .enforce else { return }
+            if shouldNotifyParent {
+                self?.webController.sendNativeEvent(type: "application-blocked", payload: [
+                    "bundleIdentifier": application.bundleIdentifier ?? "unknown",
+                    "applicationName": browserName,
+                    "host": host ?? "unknown",
+                    "mode": mode.rawValue,
+                    "message": "\(contentName) in \(browserName) triggered the TimeBoxer shield outside approved Play time: \(reason.title).",
+                ])
+                self?.enqueueCloudViolation(
+                    eventType: "website_blocked",
+                    subjectLabel: host ?? "Protected website",
+                    payload: [
+                        "browser": browserName,
+                        "host": host ?? "unknown",
+                        "reason": reason.title,
+                        "response": mode.shouldTerminateEntertainment ? "blocked" : "shielded",
+                    ]
+                )
+            }
             self?.shieldController.show(
                 applicationName: host.map { "\($0) in \(browserName)" } ?? browserName,
-                reason: reason
+                reason: reason,
+                mode: mode
             )
         }
 
@@ -113,8 +152,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.webController.show(.child)
         }
         shieldController.onAskParent = { [weak self] in
+            let requestID = UUID()
+            self?.submitCloudExtraTimeRequest(id: requestID, minutes: 10)
             self?.webController.show(.child)
-            self?.webController.sendNativeEvent(type: "shield-request-extra", payload: ["minutes": 10])
+            self?.webController.sendNativeEvent(type: "shield-request-extra", payload: [
+                "minutes": 10,
+                "requestId": requestID.uuidString,
+            ])
+        }
+        shieldController.onReturnToHomework = { [weak self] in
+            self?.webController.show(.child)
         }
 
         webController.onBridgeMessage = { [weak self] type, payload in
@@ -128,10 +175,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.applyPolicySnapshot(payload)
             } else if type == "focus-fullscreen" {
                 self.webController.setFocusFullscreen(payload["enabled"] as? Bool ?? false)
+            } else if type == "focus-restored" {
+                self.webController.acknowledgeFocusReturn()
             } else if type == "play-session-started" {
                 self.startPlaySession(payload)
             } else if type == "play-session-ended" {
                 self.endPlaySession()
+            } else if type == "authorize-parent-pin-setup",
+                      let requestID = payload["requestId"] as? String {
+                self.authorizeParentPINSetup(requestID: requestID)
+            } else if type == "extra-time-requested",
+                      let requestIDValue = payload["requestId"] as? String,
+                      let requestID = UUID(uuidString: requestIDValue) {
+                self.submitCloudExtraTimeRequest(
+                    id: requestID,
+                    minutes: payload["minutes"] as? Int ?? 10
+                )
             } else {
                 NSLog("TimeBoxer bridge event %@: %@", type, String(describing: payload))
             }
@@ -169,11 +228,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func publishInstalledApplications(force: Bool = false) {
         let applications = InstalledApplicationScanner.scan()
-        guard let fingerprint = try? JSONEncoder().encode(applications),
-              force || fingerprint != lastApplicationInventoryFingerprint
-        else { return }
-        lastApplicationInventoryFingerprint = fingerprint
-        NSLog("TimeBoxer detected %d installed applications", applications.count)
+        applyStandaloneRecommendedProtection(applications)
+        guard let fingerprint = try? JSONEncoder().encode(applications) else { return }
+        let inventoryChanged = fingerprint != lastApplicationInventoryFingerprint
+        guard force || inventoryChanged else { return }
+        if inventoryChanged {
+            lastApplicationInventoryFingerprint = fingerprint
+            NSLog("TimeBoxer detected %d installed applications", applications.count)
+            pendingCloudApplicationInventory = applications
+            sendCloudHeartbeat()
+        }
         webController.sendNativeEvent(
             type: "installed-apps-snapshot",
             payload: [
@@ -181,6 +245,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "scannedAt": Int64(Date().timeIntervalSince1970 * 1_000),
             ]
         )
+    }
+
+    private func applyStandaloneRecommendedProtection(
+        _ applications: [InstalledApplicationRecord]
+    ) {
+        guard !cloudPairingService.isPaired else { return }
+        let recommended = InstalledApplicationScanner.recommendedBundleIdentifiers(in: applications)
+        guard !recommended.isEmpty else { return }
+
+        var policy = policyStore.policy
+        let previous = policy.blockedBundleIdentifiers
+        let modeChanged = policy.enforcementMode != .observe
+        policy.blockedBundleIdentifiers.formUnion(recommended)
+        policy.enforcementMode = .observe
+        guard policy.blockedBundleIdentifiers != previous || modeChanged else { return }
+
+        do {
+            try policyStore.save(policy)
+            NSLog(
+                "TimeBoxer enabled standalone protection for %d detected entertainment apps",
+                recommended.count
+            )
+        } catch {
+            NSLog("TimeBoxer could not save standalone app protection: %@", error.localizedDescription)
+        }
     }
 
     private func applyFamilyStateUpdate(_ payload: [String: Any]) {
@@ -220,8 +309,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pairingItem.isEnabled = !cloudPairingService.isPaired
         menu.addItem(pairingItem)
         menu.addItem(.separator())
-        menu.addItem(makeStatusMenuItem("Show Demo Shield", action: #selector(showDemoShield)))
-        menu.addItem(makeStatusMenuItem("Reload Local Policy", action: #selector(reloadPolicy)))
         menu.addItem(makeStatusMenuItem(loginItemTitle, action: #selector(toggleLoginItem)))
         let modeItem = NSMenuItem(title: enforcementModeTitle, action: nil, keyEquivalent: "")
         modeItem.isEnabled = false
@@ -266,16 +353,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func showDemoShield() {
-        shieldController.showDemo()
-    }
-
-    @objc private func reloadPolicy() {
-        policyStore.reload()
-        let mode = policyStore.policy.enforcementMode == .enforce ? "Enforce" : "Observe Only"
-        statusItem?.menu?.items.first(where: { $0.title.hasPrefix("Mode:") })?.title = "Mode: \(mode)"
-    }
-
     @objc private func toggleLoginItem() {
         guard confirmParentPIN(
             title: "Change startup protection?",
@@ -318,6 +395,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func confirmParentPIN(title: String, message: String) -> Bool {
+        guard
+            let expectedPIN = familyStateStore.parentPIN,
+            ParentPINPolicy.isSecure(expectedPIN)
+        else {
+            let setupAlert = NSAlert()
+            setupAlert.messageText = "Parent PIN setup required"
+            setupAlert.informativeText = "Open TimeBoxer and ask a parent to create a private PIN. The old default PIN is disabled."
+            setupAlert.alertStyle = .warning
+            setupAlert.runModal()
+            return false
+        }
+
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
@@ -331,7 +420,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.window.initialFirstResponder = pinField
 
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
-        let expectedPIN = familyStateStore.parentPIN ?? "1234"
         guard pinField.stringValue == expectedPIN else {
             NSSound.beep()
             return false
@@ -339,12 +427,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    private func authorizeParentPINSetup(requestID: String) {
+        var authorizationReference: AuthorizationRef?
+        let createStatus = AuthorizationCreate(
+            nil,
+            nil,
+            [.interactionAllowed, .extendRights, .preAuthorize],
+            &authorizationReference
+        )
+        guard createStatus == errAuthorizationSuccess, let authorizationReference else {
+            sendParentAuthorizationResult(requestID: requestID, allowed: false)
+            return
+        }
+        defer { AuthorizationFree(authorizationReference, []) }
+
+        let status = "system.privilege.admin".withCString { authorizationName in
+            var authorizationItem = AuthorizationItem(
+                name: authorizationName,
+                valueLength: 0,
+                value: nil,
+                flags: 0
+            )
+            return withUnsafeMutablePointer(to: &authorizationItem) { itemPointer in
+                var authorizationRights = AuthorizationRights(count: 1, items: itemPointer)
+                return AuthorizationCopyRights(
+                    authorizationReference,
+                    &authorizationRights,
+                    nil,
+                    [.interactionAllowed, .extendRights],
+                    nil
+                )
+            }
+        }
+        sendParentAuthorizationResult(
+            requestID: requestID,
+            allowed: status == errAuthorizationSuccess
+        )
+    }
+
+    private func sendParentAuthorizationResult(requestID: String, allowed: Bool) {
+        webController.sendNativeEvent(
+            type: "parent-authorization-result",
+            payload: ["requestId": requestID, "allowed": allowed]
+        )
+    }
+
     private var loginItemTitle: String {
         loginItemManager.isEnabled ? "Stop Starting at Login" : "Start at Login"
     }
 
     private var enforcementModeTitle: String {
-        policyStore.policy.enforcementMode == .enforce ? "Mode: Enforce" : "Mode: Observe Only"
+        policyStore.policy.enforcementMode.shouldTerminateEntertainment
+            ? "Mode: Block"
+            : "Mode: Focus Shield"
     }
 
     private var pairingMenuTitle: String {
@@ -372,20 +507,150 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func sendCloudHeartbeat() {
         guard cloudPairingService.isPaired, !cloudHeartbeatInFlight else { return }
         cloudHeartbeatInFlight = true
+        let applicationInventory = pendingCloudApplicationInventory
         Task {
-            defer { cloudHeartbeatInFlight = false }
             do {
-                let heartbeat = try await cloudPairingService.heartbeat()
+                let heartbeat = try await cloudPairingService.heartbeat(
+                    applicationInventory: applicationInventory
+                )
+                if let applicationInventory,
+                   pendingCloudApplicationInventory == applicationInventory {
+                    pendingCloudApplicationInventory = nil
+                    NSLog("TimeBoxer uploaded %d detected applications", applicationInventory.count)
+                }
                 if let cloudPolicy = heartbeat.policy {
                     try applyCloudPolicy(cloudPolicy)
                     try cloudPairingService.acknowledgePolicyRevision(heartbeat.policyRevision)
                     NSLog("TimeBoxer applied cloud policy revision %ld", heartbeat.policyRevision)
                 }
+                if let requestUpdates = heartbeat.requestUpdates {
+                    try applyCloudRequestUpdates(requestUpdates)
+                }
                 NSLog("TimeBoxer cloud heartbeat completed at policy revision %ld", heartbeat.policyRevision)
+                cloudHeartbeatInFlight = false
+                flushNextCloudEvent()
+                flushNextCloudExtraTimeRequest()
+                if pendingCloudApplicationInventory != nil {
+                    sendCloudHeartbeat()
+                }
             } catch {
+                cloudHeartbeatInFlight = false
                 NSLog("TimeBoxer cloud heartbeat failed: %@", error.localizedDescription)
             }
         }
+    }
+
+    private func enqueueCloudViolation(
+        eventType: String,
+        subjectLabel: String,
+        payload: [String: String]
+    ) {
+        let event = CloudDeviceEvent(
+            clientEventId: UUID(),
+            eventType: eventType,
+            severity: "violation",
+            subjectLabel: String(subjectLabel.prefix(160)),
+            occurredAt: ISO8601DateFormatter().string(from: .now),
+            payload: payload
+        )
+        pendingCloudEvents.append(event)
+        if pendingCloudEvents.count > 100 {
+            pendingCloudEvents.removeFirst(pendingCloudEvents.count - 100)
+        }
+        flushNextCloudEvent()
+    }
+
+    private func flushNextCloudEvent() {
+        guard
+            cloudPairingService.isPaired,
+            !cloudEventInFlight,
+            let event = pendingCloudEvents.first
+        else { return }
+        cloudEventInFlight = true
+        Task {
+            do {
+                try await cloudPairingService.record(event: event)
+                if pendingCloudEvents.first?.clientEventId == event.clientEventId {
+                    pendingCloudEvents.removeFirst()
+                }
+                cloudEventInFlight = false
+                flushNextCloudEvent()
+            } catch {
+                cloudEventInFlight = false
+                NSLog("TimeBoxer cloud event upload failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    private func submitCloudExtraTimeRequest(id: UUID, minutes: Int) {
+        pendingCloudExtraTimeRequests[id] = min(60, max(1, minutes))
+        flushNextCloudExtraTimeRequest()
+    }
+
+    private func flushNextCloudExtraTimeRequest() {
+        guard
+            cloudPairingService.isPaired,
+            !cloudExtraTimeRequestInFlight,
+            let request = pendingCloudExtraTimeRequests.first
+        else { return }
+        cloudExtraTimeRequestInFlight = true
+        Task {
+            do {
+                try await cloudPairingService.requestExtraTime(
+                    clientRequestID: request.key,
+                    minutes: request.value
+                )
+                pendingCloudExtraTimeRequests.removeValue(forKey: request.key)
+                cloudExtraTimeRequestInFlight = false
+                NSLog("TimeBoxer uploaded an extra-time request")
+                flushNextCloudExtraTimeRequest()
+            } catch {
+                cloudExtraTimeRequestInFlight = false
+                NSLog("TimeBoxer extra-time request upload failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    private func restorePendingCloudExtraTimeRequests() {
+        guard
+            let state = familyStateStore.loadEnvelope()?["state"] as? [String: Any],
+            let requests = state["pendingRequests"] as? [[String: Any]]
+        else { return }
+        for request in requests where request["status"] as? String == "pending" {
+            guard
+                let idValue = request["id"] as? String,
+                let id = UUID(uuidString: idValue)
+            else { continue }
+            pendingCloudExtraTimeRequests[id] = min(60, max(1, request["minutes"] as? Int ?? 10))
+        }
+    }
+
+    private func applyCloudRequestUpdates(_ updates: [CloudRequestUpdate]) throws {
+        guard
+            !updates.isEmpty,
+            var state = familyStateStore.loadEnvelope()?["state"] as? [String: Any],
+            var requests = state["pendingRequests"] as? [[String: Any]]
+        else { return }
+        var changed = false
+        for update in updates {
+            guard let index = requests.firstIndex(where: {
+                guard let id = $0["id"] as? String else { return false }
+                return UUID(uuidString: id) == update.clientRequestId
+            }) else { continue }
+            if requests[index]["status"] as? String != update.status {
+                requests[index]["status"] = update.status
+                if let resolvedAt = update.resolvedAt,
+                   let date = ISO8601DateFormatter().date(from: resolvedAt) {
+                    requests[index]["resolvedAt"] = Int64(date.timeIntervalSince1970 * 1_000)
+                }
+                changed = true
+            }
+        }
+        guard changed else { return }
+        state["pendingRequests"] = requests
+        let envelope = try familyStateStore.save(state: state, sourceId: "cloud-request")
+        lastDeliveredFamilyRevision = envelope["revision"] as? Int ?? lastDeliveredFamilyRevision
+        webController.sendNativeEvent(type: "family-state-snapshot", payload: envelope)
     }
 
     private func applyCloudPolicy(_ document: CloudPolicyDocument) throws {
@@ -402,11 +667,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.bonusMinutesToday = document.parentBonusDate == today
             ? min(120, max(0, document.parentBonusMinutes ?? 0))
             : 0
-        policy.blockedBundleIdentifiers = FamilyPolicy.safeDefault.blockedBundleIdentifiers
-            .union(document.protectedApplications)
-        policy.restrictedDomains = WebsiteClassification.defaultRestrictedDomains
-            .union(document.protectedDomains)
-        policy.enforcementMode = .enforce
+        policy.blockedBundleIdentifiers = Set(document.protectedApplications)
+        policy.restrictedDomains = Set(document.protectedDomains)
+        policy.enforcementMode = .observe
         try policyStore.save(policy)
 
         guard var state = familyStateStore.loadEnvelope()?["state"] as? [String: Any] else { return }
@@ -471,7 +734,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         policy.limits.holiday = payload["holidayLimit"] as? Int ?? policy.limits.holiday
         policy.usedMinutesToday = payload["usedMinutesToday"] as? Int ?? policy.usedMinutesToday
         policy.bonusMinutesToday = payload["bonusMinutesToday"] as? Int ?? policy.bonusMinutesToday
-        policy.enforcementMode = .enforce
+        policy.enforcementMode = .observe
         if let identifiers = payload["blockedBundleIdentifiers"] as? [String] {
             policy.blockedBundleIdentifiers = Set(identifiers.compactMap { identifier in
                 let normalized = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -507,7 +770,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         var policy = policyStore.policy
         policy.activeEntertainmentUntil = requestedEnd > now ? min(requestedEnd, maximumEnd) : nil
-        policy.enforcementMode = .enforce
+        policy.enforcementMode = .observe
         do {
             try policyStore.save(policy)
         } catch {
@@ -516,12 +779,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func endPlaySession() {
-        var policy = policyStore.policy
-        policy.activeEntertainmentUntil = nil
         do {
-            try policyStore.save(policy)
+            try policyStore.revokeActiveEntertainmentPermission()
         } catch {
             NSLog("TimeBoxer could not end Play permission: %@", error.localizedDescription)
+        }
+    }
+
+    private func revokeStalePlaySession() {
+        do {
+            if try policyStore.revokeActiveEntertainmentPermission() {
+                NSLog("TimeBoxer revoked a stale Play permission during launch")
+            }
+        } catch {
+            NSLog("TimeBoxer could not revoke stale Play permission: %@", error.localizedDescription)
+        }
+    }
+
+    private func ensureAlertOnlyMode() {
+        guard policyStore.policy.enforcementMode != .observe else { return }
+        var policy = policyStore.policy
+        policy.enforcementMode = .observe
+        do {
+            try policyStore.save(policy)
+            NSLog("TimeBoxer migrated protection to alerts-only mode")
+        } catch {
+            NSLog("TimeBoxer could not save alerts-only mode: %@", error.localizedDescription)
         }
     }
 }

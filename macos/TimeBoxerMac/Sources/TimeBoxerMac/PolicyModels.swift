@@ -3,6 +3,14 @@ import Foundation
 enum EnforcementMode: String, Codable, Sendable {
     case observe
     case enforce
+
+    var shouldTerminateEntertainment: Bool {
+        self == .enforce
+    }
+
+    var sendsFamilyAlerts: Bool {
+        true
+    }
 }
 
 enum TimeBoxerDayType: String, Codable, Sendable {
@@ -52,7 +60,7 @@ struct FamilyPolicy: Codable, Equatable, Sendable {
             "com.tencent.tenvideo",
         ],
         restrictedDomains: WebsiteClassification.defaultRestrictedDomains,
-        enforcementMode: .enforce
+        enforcementMode: .observe
     )
 }
 

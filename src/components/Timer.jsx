@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, X, Trophy } from 'lucide-react';
+import Play from 'lucide-react/dist/esm/icons/play.js';
+import Pause from 'lucide-react/dist/esm/icons/pause.js';
+import X from 'lucide-react/dist/esm/icons/x.js';
+import Trophy from 'lucide-react/dist/esm/icons/trophy.js';
 import { getPlayedMinutesForCountdown } from '../rules';
+import { notifyNative } from '../nativeBridge.js';
 
 export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN, onComplete, onCancel }) {
   const initialCountdownSeconds = testTimerSeconds > 0 ? testTimerSeconds : duration * 60;
@@ -314,26 +318,28 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
     if (!isEarnMode) return;
     if (Date.now() < focusProtectionReadyAtRef.current) return;
     if (!isActive && showWarning) {
-      if (!isPhoneDevice) startContinuousAlarm('warning');
+      if (!isPhoneDevice && !window.__TIMEBOXER_MAC__) startContinuousAlarm('warning');
       return;
     }
     freezeTimer();
     setIsActive(false);
     setShowWarning(true);
-    if (!isPhoneDevice) startContinuousAlarm('warning');
+    if (!isPhoneDevice && !window.__TIMEBOXER_MAC__) startContinuousAlarm('warning');
   }, [freezeTimer, isActive, isEarnMode, isPhoneDevice, showWarning, startContinuousAlarm]);
 
   // Security checks
   useEffect(() => {
+    if (window.__TIMEBOXER_MAC__) return undefined;
+
     let focusCheckInterval = null;
     const focusBreakDelayMs = 180;
 
     const scheduleFocusBreakCheck = () => {
-      if (!isEarnMode || (document.hidden && !isIPadDevice)) return;
+      if (!isEarnMode) return;
       clearPendingFocusBreak();
       focusBreakTimeoutRef.current = window.setTimeout(() => {
         focusBreakTimeoutRef.current = null;
-        if ((!document.hidden || isIPadDevice) && !document.hasFocus()) {
+        if (document.hidden || !document.hasFocus()) {
           pauseForFocusBreak();
         }
       }, focusBreakDelayMs);
@@ -341,10 +347,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (!isIPadDevice) {
-          clearPendingFocusBreak();
-        }
-        if (isPhoneDevice && isEarnMode) {
+        if (isEarnMode) {
           pauseForFocusBreak();
         }
         return;
@@ -370,7 +373,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
     };
 
     const checkWindowFocus = () => {
-      if (isEarnMode && !isIPadDevice && !document.hidden && !document.hasFocus()) {
+      if (isEarnMode && !isIPadDevice && (document.hidden || !document.hasFocus())) {
         scheduleFocusBreakCheck();
       }
     };
@@ -398,6 +401,16 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
       clearPendingFocusBreak();
     };
   }, [clearPendingFocusBreak, isEarnMode, isIPadDevice, isPhoneDevice, pauseForFocusBreak, testTimerSeconds]);
+
+  useEffect(() => {
+    const handleNativeFocusViolation = (event) => {
+      if (event.detail?.type === 'focus-violation' || event.detail?.type === 'focus-suspended') {
+        pauseForFocusBreak();
+      }
+    };
+    window.addEventListener('timeboxer:native-event', handleNativeFocusViolation);
+    return () => window.removeEventListener('timeboxer:native-event', handleNativeFocusViolation);
+  }, [pauseForFocusBreak]);
 
   // Tick logic based on wall-clock time so display sleep/throttling does not lose time.
   useEffect(() => {
@@ -452,6 +465,7 @@ export default function Timer({ mode, duration, testTimerSeconds = 0, parentPIN,
         }
       }
       stopContinuousAlarm();
+      notifyNative('focus-restored');
       setIsActive(true);
       if (showWarning) setShowWarning(false);
     } else {

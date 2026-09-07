@@ -348,6 +348,8 @@ private struct AvailableTimeSettingsView: View {
 private struct ProtectionSettingsView: View {
     @EnvironmentObject private var model: ParentAppModel
     @State private var domain = ""
+    @State private var applicationsExpanded = true
+    @State private var websitesExpanded = false
 
     var body: some View {
         ScrollView {
@@ -357,47 +359,9 @@ private struct ProtectionSettingsView: View {
                     detail: "The paired Mac keeps enforcing its last downloaded family rules.",
                     icon: "checkmark.shield.fill"
                 )
-                protectionCard("Applications", detail: "Games and entertainment apps detected on the child Mac", icon: "square.grid.2x2")
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Websites", systemImage: "globe")
-                        .font(.headline)
-                        .foregroundStyle(TimeBoxerColors.green)
-                    HStack {
-                        TextField("youtube.com", text: $domain)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .textFieldStyle(.roundedBorder)
-                        Button("Add") {
-                            let value = domain
-                            domain = ""
-                            Task { await model.addProtectedDomain(value) }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(TimeBoxerColors.green)
-                        .disabled(domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSavingPolicy)
-                    }
-                    if model.snapshot.policy.document.protectedDomains.isEmpty {
-                        Text("No custom websites yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(model.snapshot.policy.document.protectedDomains, id: \.self) { protectedDomain in
-                            HStack {
-                                Text(protectedDomain).font(.subheadline)
-                                Spacer()
-                                Button(role: .destructive) {
-                                    Task { await model.removeProtectedDomain(protectedDomain) }
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .disabled(model.isSavingPolicy)
-                            }
-                            Divider()
-                        }
-                    }
-                }
-                .timeBoxerCard()
-                cloudWriteNote("Website changes now save to the cloud. Detected Mac applications will become editable after the device uploads its app inventory in the next sync step.")
+                applicationInventoryCard
+                websitesCard
+                cloudWriteNote("Selections are saved to the TimeBoxer cloud. The child Mac downloads the next policy version and applies it in the background.")
             }
             .padding(16)
         }
@@ -406,14 +370,116 @@ private struct ProtectionSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func protectionCard(_ title: String, detail: String, icon: String) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.headline)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+    private var applicationInventoryCard: some View {
+        DisclosureGroup(isExpanded: $applicationsExpanded) {
+            VStack(spacing: 0) {
+                if model.snapshot.applications.isEmpty {
+                    Text("Waiting for the child Mac to upload its application list.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 12)
+                } else {
+                    ForEach(model.snapshot.applications) { application in
+                        Toggle(isOn: Binding(
+                            get: {
+                                model.snapshot.policy.document.protectedApplications
+                                    .contains(application.bundleIdentifier)
+                            },
+                            set: { isProtected in
+                                Task {
+                                    await model.setApplicationProtected(
+                                        application.bundleIdentifier,
+                                        isProtected: isProtected
+                                    )
+                                }
+                            }
+                        )) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text(application.name).font(.subheadline.bold())
+                                    if application.recommended {
+                                        Text("Suggested")
+                                            .font(.caption2.bold())
+                                            .foregroundStyle(TimeBoxerColors.green)
+                                    }
+                                }
+                                Text(application.category ?? application.bundleIdentifier)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .tint(TimeBoxerColors.green)
+                        .disabled(model.isSavingPolicy)
+                        .padding(.vertical, 9)
+                        Divider()
+                    }
+                }
             }
-        } icon: {
-            Image(systemName: icon).foregroundStyle(TimeBoxerColors.green)
+            .padding(.top, 8)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Label("Applications (\(model.snapshot.applications.count))", systemImage: "square.grid.2x2")
+                    .font(.headline)
+                if let scannedAt = model.snapshot.applicationInventoryScannedAt {
+                    Text("Detected on the child Mac · updated \(scannedAt, style: .relative)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Games and entertainment apps detected on the child Mac")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .timeBoxerCard()
+    }
+
+    private var websitesCard: some View {
+        DisclosureGroup(isExpanded: $websitesExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    TextField("youtube.com", text: $domain)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                    Button("Add") {
+                        let value = domain
+                        domain = ""
+                        Task { await model.addProtectedDomain(value) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(TimeBoxerColors.green)
+                    .disabled(domain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSavingPolicy)
+                }
+                if model.snapshot.policy.document.protectedDomains.isEmpty {
+                    Text("No websites are protected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(model.snapshot.policy.document.protectedDomains, id: \.self) { protectedDomain in
+                        HStack {
+                            Text(protectedDomain).font(.subheadline)
+                            Spacer()
+                            Button(role: .destructive) {
+                                Task { await model.removeProtectedDomain(protectedDomain) }
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .disabled(model.isSavingPolicy)
+                        }
+                        Divider()
+                    }
+                }
+            }
+            .padding(.top, 10)
+        } label: {
+            Label(
+                "Websites (\(model.snapshot.policy.document.protectedDomains.count))",
+                systemImage: "globe"
+            )
+            .font(.headline)
         }
         .timeBoxerCard()
     }

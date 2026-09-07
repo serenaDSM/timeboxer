@@ -397,9 +397,74 @@
 - [x] 30 项 Web/契约/安全测试、iOS Debug 构建、macOS Release 构建、严格签名、真实双端安装和运行验收通过。
 - [ ] 下一步：Mac 将 41 个已安装 App 清单上传云端，家长端按实际设备清单选择保护项；之后接通违规事件和加时申请的云端往返。
 
+### [2026-08-23] 真实 App 清单与家长选择闭环
+- [x] Mac 将实际安装 App 的精简清单上传到 TimeBoxer 独立云端；只包含 Bundle ID、显示名、类别和建议保护标记，不收集路径、使用记录、截图、键盘输入或网页正文。
+- [x] `child_devices` 增加最多 500 项的 JSON 清单和服务端接收时间；继续复用家庭成员 RLS，孩子端只能通过设备密钥认证的 Edge Function 写入。
+- [x] 家长端 `Apps and websites` 改为手机友好的双折叠区：应用默认展开、网站默认收起；应用开关直接来自孩子 Mac 的真实扫描结果。
+- [x] 家长选择会更新 `protectedApplications` 策略版本，Mac 下一次心跳下载后以云端列表为准执行；不再与本机硬编码列表做无法关闭的并集。
+- [x] 现有家庭策略补入 8 个应用和 15 个网站的安全默认值，新家庭也使用相同默认策略。
+- [x] 真实安装版完成端到端验收：Mac 上传 41 项，云端记录扫描时间，设备维持 revision 4 回执；更新安装包后无需再次绑定即可继续心跳。
+- [x] 修复 ad-hoc 内测包更新时传统钥匙串 ACL 卡住启动的问题；正式签名优先使用 Data Protection Keychain，未配置 Apple 签名证书的本机内测包使用当前账户专属的 `700/600` 权限凭据后备。
+- [x] 拆分“孩子页面需要刷新清单”和“清单确实变化才上传”，并增加稳定排序，避免相同 41 项每分钟重复写云端。
+- [x] 新增应用清单隐私/上限/设备认证契约测试和稳定排序 XCTest；33 项 Web/契约测试、17 项 macOS XCTest、iOS Debug 构建、macOS Release 构建和真实安装运行均通过。
+- [x] Mac 的 App/网站拦截事件和孩子额外时间申请已接入云端，家长端处理结果可随心跳回传 Mac。
+- [ ] 下一步：完成双端新版安装和真实违规/申请/审批往返验收；随后接入 APNs 远程通知，准备首批多家庭内测。
+
+### [2026-08-23] 违规提醒与加时审批云端闭环（本地实现完成）
+- [x] Mac 在真正拦截受保护 App 或网站时生成带幂等 UUID 的精简违规事件；只上报应用/域名、拦截原因和时间，不上传截图、键盘输入、网页正文、剪贴板或完整浏览历史。
+- [x] 孩子从 Shield 或孩子首页申请额外时间时复用同一个 UUID，Mac 使用设备身份上传；服务端限制每台设备仅有一个待处理申请并安全处理重复提交。
+- [x] 家长端批准或拒绝改走认证 Edge Function；批准操作、申请状态、家长加时和策略 revision 在同一数据库事务中完成，重复点击不会重复加时。
+- [x] Mac 心跳接收申请处理结果和新策略；批准后孩子端申请状态与可用时间自动更新，拒绝后清除等待状态。
+- [x] 数据库迁移会先收束历史重复待处理申请，再建立唯一索引；撤销家长端对申请表的直接更新权限，避免绕过原子审批逻辑。
+- [x] 修复 File Provider 管理目录导致 Swift 输入在编译中被误判变化的问题；Mac 打包和测试统一改为从本地临时快照执行。
+- [x] 修复图标库总入口一次打开上千文件造成的构建卡死风险，改为按图标文件精准导入；35 项 Web/契约测试、17 项 macOS XCTest、Mac Release 编译与 Web esbuild 冒烟检查通过。
+- [x] 数据库迁移和 `timeboxer-pairing` Edge Function version 9 已部署到独立 TimeBoxer Supabase 项目；迁移结构、唯一约束、写权限收口、JWT 校验及新版 Mac 心跳 `POST 200` 均已在线核验。
+- [ ] 执行 iOS Debug 编译、安装双端新版测试包，并完成真实违规/申请/审批往返验收。
+- [ ] 下一步：接入 APNs 远程推送，使家长端未打开时也能收到孩子违规和加时申请通知。
+
+### [2026-08-29] macOS 0.6.1 Earn 原生防切屏修复（Build 19）
+- [x] 定位到 WKWebView 进入后台后 `document.hidden` 分支取消失焦检查，导致 Earn 倒计时可在切屏后继续的真实漏洞；该问题与设备是否已绑定无关。
+- [x] 将 Earn 全屏保护提升到 macOS 原生层：监听应用失活并每 250ms 校验前台、Key Window 和系统全屏状态。
+- [x] 孩子切换应用或退出全屏后，原生层立即记录违规、暂停 Earn、持续拉回 TimeBoxer；恢复全屏并点击继续后才清除违规状态。
+- [x] 将切屏警报从后台不可靠的 WKWebView Web Audio 改为 AVAudioPlayer 原生循环音轨；警报保持到孩子回到 TimeBoxer 并主动继续。
+- [x] 未绑定状态同样启用本地 Earn 防切屏；绑定只影响家长自选保护名单、云端同步和家长提醒。
+- [x] 新增 5 项 Focus Protection/原生警报 XCTest；22 项 macOS 测试、35 项 Web/契约测试、Timer ESLint、Release 编译、严格签名和 ZIP 完整性检查通过。
+- [x] 生成 Apple Silicon 测试包 `releases/TimeBoxer-Mac-Test-0.6.1-arm64.zip`；真实跨应用声音强度与系统音量边界等待孩子 Mac 手动验收。
+
+### [2026-08-30] macOS 0.6.2 未绑定单机保护自检（Build 20）
+- [x] 未绑定 Mac 启动时扫描实际安装 App，把已知娱乐客户端和 macOS Games 分类 App 自动加入本地强制保护；之后每分钟复扫，新启动的系统分类游戏也会即时保护。
+- [x] 单机默认网站名单继续生效；浏览器自动化权限缺失时不再只隐藏 Chrome/Safari，而是关闭无法监管的浏览器，避免 YouTube 后台有声音却没有可关闭窗口。
+- [x] 修复 Earn 的系统状态边界：退出原生全屏会自动恢复，Mac/屏幕休眠会暂停 Earn 且不误响，唤醒后恢复保护。
+- [x] 启动和正常退出时撤销残留 Play 通行证，防止应用重启后继承旧的娱乐许可。
+- [x] 禁用公开默认 PIN `1234`；首次创建 PIN 必须先通过 macOS 管理员授权，避免孩子抢先设置已知 PIN；移除孩子可接触的 Demo 和本地策略重载菜单项。
+- [x] 新增浏览器安全回退、休眠警报、Play 权限持久化撤销、单机 App 推荐保护和 PIN 策略回归测试；37 项 Web/契约测试、31 项 macOS XCTest 和全量 ESLint 通过。
+- [x] 生成并验收唯一的新 Apple Silicon 测试包 `releases/TimeBoxer-Mac-Test-0.6.2-arm64.zip`；严格验签、版本检查和 ZIP 完整性检查通过，SHA-256 为 `67e140fd1e8bfb34373fea9be217a8d19aaef8da7b4a4e92fedcce532088d1ca`。
+- [ ] 孩子 Mac 手测 Command-Tab、系统音量、休眠、Chrome/Safari 自动化授权和单机游戏拦截；随后再测试真实 iPhone 绑定。
+- [ ] 正式抗强制退出、跨 macOS 用户和本地策略篡改仍需要特权辅助服务或 MDM；内测阶段要求孩子使用标准非管理员账户，完整边界见 `docs/STANDALONE_SECURITY_AUDIT.md`。
+
+### [2026-08-31] macOS 0.6.3 提醒优先模式（Build 21）
+- [x] 按产品决策将默认行为从“强制关闭”调整为“提醒优先”：非 Play 时间仍识别已选娱乐 App 和网站，但不隐藏、不终止 App，也不替换或关闭浏览器标签页。
+- [x] 检测到非批准娱乐时显示可确认的品牌全屏提醒，并使用原生循环警报音持续播放到孩子点击 `I understand`、开始 Earn 或向家长申请时间。
+- [x] 每次提醒继续写入现有云端设备事件链路；绑定且联网后，家长端显示“opened outside Play time”，不再误写为“was blocked”。
+- [x] 旧安装包遗留的 enforce 本地状态会在新版本启动时自动迁移为 Alerts Only；状态栏明确显示 `Mode: Alerts Only`。
+- [x] Play 原生时间窗继续作为免警报许可；Play 内不提醒，倒计时结束、页面关闭或 App 重启后恢复提醒。
+- [x] 孩子端、Web 家长端和 iOS 家长端说明同步改为提醒逻辑；37 项 Web/契约测试、32 项 macOS XCTest、全量 ESLint、Child Release 构建和 iOS Simulator Debug 构建通过。
+- [x] 构建并验收 Apple Silicon 测试包 `releases/TimeBoxer-Mac-Test-0.6.3-arm64.zip`；版本 0.6.3（Build 21）、严格签名和 ZIP 完整性检查通过，SHA-256 为 `b97d16dbd47e925c9ea6751a0cb484f1b10640bbcc9f39b97abcc3b2a0c49f50`。
+- [ ] 在孩子 Mac 进行真实警报音、游戏不被关闭和家长端事件手测。
+- [ ] 家长 App 关闭时的 iOS 系统推送仍需下一阶段接入 APNs；当前提醒在家长端打开、回到前台或刷新后可见。
+
+### [2026-08-31] macOS 0.6.4 强制霸屏提醒模式（Build 22）
+- [x] 按最终产品决策将非 Play 行为调整为 Focus Shield：检测到受保护游戏或网站时立即全屏霸屏并持续循环警报，但保留游戏/浏览器进程，不执行退出或强制终止。
+- [x] 移除可直接忽略的 `I understand`；霸屏只允许 Earn、申请家长加时或返回 TimeBoxer，再次切回娱乐内容会立即恢复霸屏。
+- [x] 本地霸屏不受家长提醒冷却限制，确保每次重新切回都立即生效；云端事件单独去重，避免每秒向家长端重复上传。
+- [x] 提醒事件继续使用现有认证云端链路，家长端文案改为 `activated the focus shield`，并说明 Mac 已霸屏、响铃但没有关闭应用。
+- [x] 37 项 Web/契约测试、33 项 macOS XCTest、全量 ESLint、Child Release 构建和 iOS Simulator Debug 编译通过；新增回归测试确认重复切回始终霸屏但家长事件保持去重。
+- [x] macOS Release 构建、严格签名和 ZIP 完整性检查通过；生成 Apple Silicon 测试包 `releases/TimeBoxer-Mac-Test-0.6.4-arm64.zip`，版本 0.6.4（Build 22），SHA-256 为 `a701d807c91e4171fc31a4e8bf3741c7f5a70101493d4bc31580dae5eed957c8`。
+- [ ] 家长 App 完全关闭时的 iOS 系统推送仍需接入 APNs；当前绑定提醒在家长端打开、回到前台或刷新后可见。
+
 ---
 
 ## 🚀 第三阶段：未来规划 (Next Steps)
-- [ ] 接入专用 Supabase 云端项目实现跨设备多端同步。
+- [x] 接入专用 Supabase 云端项目实现跨设备多端同步。
 - [ ] 开发可视化的孩子“周常努力数据折线图”。
 - [ ] 丰富 Spend Time 消费区的虚拟商城体系（兑换零食、特权等）。

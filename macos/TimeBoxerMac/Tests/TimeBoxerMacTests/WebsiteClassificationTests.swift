@@ -54,4 +54,29 @@ final class WebsiteClassificationTests: XCTestCase {
         )
         XCTAssertNil(WebsiteClassification.safeReplacementURL(for: "com.example.browser"))
     }
+
+    func testStrictModeStopsBrowserWhenURLSupervisionIsUnavailable() {
+        XCTAssertEqual(
+            BrowserEnforcementAction.decide(mode: .enforce, restrictedHost: nil),
+            .stopUnsupervisedBrowser
+        )
+    }
+
+    func testStrictModeReplacesKnownRestrictedTab() {
+        XCTAssertEqual(
+            BrowserEnforcementAction.decide(mode: .enforce, restrictedHost: "youtube.com"),
+            .replaceRestrictedTab
+        )
+    }
+
+    func testObserveModeNeverMutatesBrowser() {
+        XCTAssertEqual(
+            BrowserEnforcementAction.decide(mode: .observe, restrictedHost: nil),
+            .none
+        )
+        XCTAssertEqual(
+            BrowserEnforcementAction.decide(mode: .observe, restrictedHost: "youtube.com"),
+            .none
+        )
+    }
 }

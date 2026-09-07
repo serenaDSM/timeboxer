@@ -69,3 +69,11 @@ final class FamilyStateStore {
         }
     }
 }
+
+enum ParentPINPolicy {
+    static func isSecure(_ value: String?) -> Bool {
+        guard let value else { return false }
+        return value.range(of: #"^\d{4,8}$"#, options: .regularExpression) != nil
+            && value != "1234"
+    }
+}

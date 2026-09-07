@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { LockKeyhole } from 'lucide-react';
+import LockKeyhole from 'lucide-react/dist/esm/icons/lock-keyhole.js';
 import { useStore } from './store.js';
 import { getLocalDateKey } from './date.js';
 import {
@@ -19,15 +19,18 @@ import Onboarding from './components/Onboarding.jsx';
 import ChildDashboard from './components/ChildDashboard.jsx';
 import ParentDashboard from './components/ParentDashboard.jsx';
 import BrandLogo from './components/BrandLogo.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
+import ParentPINSetup from './components/ParentPINSetup.jsx';
 import { notifyNative } from './nativeBridge.js';
 import { useFamilySync } from './useFamilySync.js';
 import { clientCanOpenRole, getInitialRole } from './clientMode.js';
+import { isSecureParentPIN } from './parentPIN.js';
 
 const CLIENT_MODE = import.meta.env.VITE_TIMEBOXER_CLIENT || 'combined';
 const IS_CHILD_CLIENT = CLIENT_MODE === 'child';
 const IS_PARENT_CLIENT = CLIENT_MODE === 'parent';
 
-function App() {
+function TimeBoxerApp() {
   const syncStatus = useFamilySync();
   const {
     availableMinutes,
@@ -109,11 +112,14 @@ function App() {
       if (detail.type === 'application-blocked') {
         logEvent({
           type: 'blocked',
-          message: detail.payload?.message || 'A restricted Mac app was blocked.',
+          message: detail.payload?.message || 'The TimeBoxer focus shield was activated outside approved Play time.',
         });
       }
       if (detail.type === 'shield-request-extra') {
-        submitExtraTimeRequest(Number(detail.payload?.minutes) || 10);
+        submitExtraTimeRequest(
+          Number(detail.payload?.minutes) || 10,
+          detail.payload?.requestId || crypto.randomUUID(),
+        );
       }
       if (detail.type === 'installed-apps-snapshot') {
         setDetectedApplications(
@@ -179,7 +185,7 @@ function App() {
       bonusMinutesToday: earnedMinutesToday + parentBonusToday,
       restrictedDomains: policy.restrictedDomains,
       blockedBundleIdentifiers: policy.blockedBundleIdentifiers,
-      enforcementMode: 'enforce',
+      enforcementMode: 'observe',
     });
   }, [
     actualTodaySpent,
@@ -398,10 +404,13 @@ function App() {
       return;
     }
     const next = window.prompt('New parent PIN:');
-    if (next?.trim()) {
-      setParentPIN(next.trim());
-      window.alert('Parent PIN updated.');
+    if (next === null) return;
+    if (!isSecureParentPIN(next)) {
+      window.alert('Choose 4–8 digits. The old default 1234 cannot be used.');
+      return;
     }
+    setParentPIN(next.trim());
+    window.alert('Parent PIN updated.');
   };
 
   const resetData = () => {
@@ -410,6 +419,10 @@ function App() {
 
   if (!hasSeenOnboarding) {
     return <Onboarding onComplete={completeOnboarding} />;
+  }
+
+  if (!isSecureParentPIN(parentPIN)) {
+    return <ParentPINSetup onComplete={setParentPIN} />;
   }
 
   if (!IS_CHILD_CLIENT && role === 'parent-locked') {
@@ -493,7 +506,7 @@ function App() {
         onSetApplicationProtection={setApplicationProtection}
         onSendTestAlert={() => logEvent({
           type: 'blocked',
-          message: 'Test alert: YouTube was blocked outside Play time.',
+          message: 'Test alert: YouTube activated the focus shield outside Play time.',
         })}
         onReset={resetData}
       />
@@ -522,12 +535,22 @@ function App() {
       onEarn={startEarn}
       onSpend={startSpend}
       onRequestExtra={() => {
-        submitExtraTimeRequest(10);
-        notifyNative('extra-time-requested', { minutes: 10 });
+        const requestId = crypto.randomUUID();
+        submitExtraTimeRequest(10, requestId);
+        notifyNative('extra-time-requested', { minutes: 10, requestId });
       }}
       onOpenParent={openParent}
     />
   );
+}
+
+function App() {
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const isPasswordRecovery = search.get('view') === 'reset-password'
+    || hash.get('type') === 'recovery';
+
+  return isPasswordRecovery ? <ResetPassword /> : <TimeBoxerApp />;
 }
 
 export default App;

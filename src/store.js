@@ -110,7 +110,7 @@ export const useStore = create(
       lastSpentDate: '',
       cooldownUntil: 0,
       testTimerSeconds: 0,
-      parentPIN: '1234',
+      parentPIN: '',
       hasSeenOnboarding: false,
       earnTasks: DEFAULT_EARN_TASKS,
       spendTasks: DEFAULT_SPEND_TASKS,
@@ -200,11 +200,11 @@ export const useStore = create(
         }),
       })),
 
-      submitExtraTimeRequest: (minutes = 10) => set((state) => {
+      submitExtraTimeRequest: (minutes = 10, requestId = crypto.randomUUID()) => set((state) => {
         const hasPending = state.pendingRequests.some((request) => request.status === 'pending');
         if (hasPending) return state;
         const request = {
-          id: `request-${Date.now()}`,
+          id: requestId,
           type: 'extra-time',
           minutes,
           status: 'pending',

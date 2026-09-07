@@ -87,6 +87,18 @@ final class ParentAppModel: ObservableObject {
         await savePolicy(document)
     }
 
+    func setApplicationProtected(_ bundleIdentifier: String, isProtected: Bool) async {
+        var document = snapshot.policy.document
+        var identifiers = Set(document.protectedApplications)
+        if isProtected {
+            identifiers.insert(bundleIdentifier)
+        } else {
+            identifiers.remove(bundleIdentifier)
+        }
+        document.protectedApplications = identifiers.sorted()
+        await savePolicy(document)
+    }
+
     private func savePolicy(_ document: FamilyPolicyDocument) async {
         guard !isSavingPolicy else { return }
         isSavingPolicy = true

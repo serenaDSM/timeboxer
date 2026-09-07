@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://timeboxer.nz/contracts/device-application-inventory-v1.schema.json",
+  "title": "TimeBoxer device application inventory v1",
+  "type": "array",
+  "maxItems": 500,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "bundleIdentifier",
+      "name",
+      "recommended"
+    ],
+    "properties": {
+      "bundleIdentifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "pattern": "^[A-Za-z0-9.-]+$"
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "category": {
+        "type": "string",
+        "maxLength": 255
+      },
+      "recommended": {
+        "type": "boolean"
+      }
+    }
+  }
+}

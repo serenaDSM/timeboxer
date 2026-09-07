@@ -62,15 +62,42 @@ enum WebsiteClassification {
     }
 }
 
+enum BrowserEnforcementAction: Equatable, Sendable {
+    case none
+    case replaceRestrictedTab
+    case stopUnsupervisedBrowser
+
+    static func decide(
+        mode: EnforcementMode,
+        restrictedHost: String?
+    ) -> BrowserEnforcementAction {
+        guard mode.shouldTerminateEntertainment else { return .none }
+        return restrictedHost == nil ? .stopUnsupervisedBrowser : .replaceRestrictedTab
+    }
+}
+
+struct ViolationResponsePlan: Equatable, Sendable {
+    let presentFocusShield: Bool
+    let notifyParent: Bool
+
+    static func decide(reportedRecently: Bool) -> ViolationResponsePlan {
+        ViolationResponsePlan(
+            presentFocusShield: true,
+            notifyParent: !reportedRecently
+        )
+    }
+}
+
 @MainActor
 final class ApplicationMonitor: NSObject {
-    typealias BlockHandler = (NSRunningApplication, BlockReason, EnforcementMode) -> Void
-    typealias WebsiteBlockHandler = (NSRunningApplication, String?, BlockReason, EnforcementMode) -> Void
+    typealias BlockHandler = (NSRunningApplication, BlockReason, EnforcementMode, Bool) -> Void
+    typealias WebsiteBlockHandler = (NSRunningApplication, String?, BlockReason, EnforcementMode, Bool) -> Void
 
     private let workspace: NSWorkspace
     private let policyStore: PolicyStore
     private let ruleEngine: RuleEngine
     private let calendar: Calendar
+    private let shouldAutoProtectDetectedEntertainment: () -> Bool
     private let protectedBundleIdentifiers: Set<String> = [
         "com.apple.finder",
         "com.apple.dock",
@@ -94,12 +121,14 @@ final class ApplicationMonitor: NSObject {
         workspace: NSWorkspace = .shared,
         policyStore: PolicyStore,
         ruleEngine: RuleEngine = RuleEngine(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        shouldAutoProtectDetectedEntertainment: @escaping () -> Bool = { false }
     ) {
         self.workspace = workspace
         self.policyStore = policyStore
         self.ruleEngine = ruleEngine
         self.calendar = calendar
+        self.shouldAutoProtectDetectedEntertainment = shouldAutoProtectDetectedEntertainment
         super.init()
     }
 
@@ -180,47 +209,68 @@ final class ApplicationMonitor: NSObject {
         }
 
         let mode = policyStore.policy.enforcementMode
+        if !mode.shouldTerminateEntertainment,
+           workspace.frontmostApplication?.processIdentifier != application.processIdentifier {
+            return
+        }
 
         // Enforcement is never throttled. A child reopening the same game must
         // be stopped again even when the parent notification is deduplicated.
-        if mode == .enforce {
-            _ = application.hide()
-            let processIdentifier = application.processIdentifier
-            if let requestedAt = terminationRequestedAt[processIdentifier],
-               now.timeIntervalSince(requestedAt) >= forceTerminationDelay {
-                _ = application.forceTerminate()
-                terminationRequestedAt.removeValue(forKey: processIdentifier)
-            } else {
-                _ = application.terminate()
-                terminationRequestedAt[processIdentifier] = terminationRequestedAt[processIdentifier] ?? now
-            }
+        if mode.shouldTerminateEntertainment {
+            stop(application, at: now)
         }
 
-        if let lastReport = lastReports[bundleIdentifier],
-           lastReport.reason == reason,
-           lastReport.mode == mode,
-           now.timeIntervalSince(lastReport.date) < reportCooldown {
-            return
+        let reportedRecently = lastReports[bundleIdentifier].map {
+            $0.reason == reason
+                && $0.mode == mode
+                && now.timeIntervalSince($0.date) < reportCooldown
+        } ?? false
+        let responsePlan = ViolationResponsePlan.decide(reportedRecently: reportedRecently)
+        if responsePlan.notifyParent {
+            lastReports[bundleIdentifier] = (reason, mode, now)
+            NSLog(
+                "TimeBoxer %@ %@ (%@): %@",
+                mode.shouldTerminateEntertainment ? "blocked" : "shielded",
+                application.localizedName ?? "application",
+                bundleIdentifier,
+                reason.title
+            )
         }
-        lastReports[bundleIdentifier] = (reason, mode, now)
 
-        NSLog(
-            "TimeBoxer %@ %@ (%@): %@",
-            mode == .enforce ? "blocked" : "observed",
-            application.localizedName ?? "application",
-            bundleIdentifier,
-            reason.title
-        )
-
-        onBlockedApplication?(application, reason, mode)
+        // The local shield is not throttled: activating the game again must
+        // immediately restore the full-screen warning. Parent events are
+        // separately deduplicated by shouldNotifyParent.
+        if responsePlan.presentFocusShield {
+            onBlockedApplication?(application, reason, mode, responsePlan.notifyParent)
+        }
     }
 
     private func isManagedEntertainmentApp(
         _ application: NSRunningApplication,
         bundleIdentifier: String
     ) -> Bool {
-        _ = application
-        return policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier)
+        if policyStore.policy.blockedBundleIdentifiers.contains(bundleIdentifier) {
+            return true
+        }
+        guard
+            shouldAutoProtectDetectedEntertainment(),
+            let bundleURL = application.bundleURL,
+            let bundle = Bundle(url: bundleURL),
+            let category = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String,
+            EntertainmentClassification.isGameCategory(category)
+        else { return false }
+
+        var policy = policyStore.policy
+        policy.blockedBundleIdentifiers.insert(bundleIdentifier)
+        policy.enforcementMode = .observe
+        do {
+            try policyStore.save(policy)
+            NSLog("TimeBoxer added newly launched game to standalone protection: %@", bundleIdentifier)
+            return true
+        } catch {
+            NSLog("TimeBoxer could not save newly detected game: %@", error.localizedDescription)
+            return false
+        }
     }
 
     private func evaluateFrontmostBrowser() {
@@ -259,22 +309,46 @@ final class ApplicationMonitor: NSObject {
         }
 
         let mode = policyStore.policy.enforcementMode
-        if mode == .enforce {
-            if host != nil {
+        switch BrowserEnforcementAction.decide(mode: mode, restrictedHost: host) {
+        case .replaceRestrictedTab:
                 replaceActiveBrowserTab(bundleIdentifier: bundleIdentifier)
-            }
-            _ = application.hide()
+                _ = application.hide()
+        case .stopUnsupervisedBrowser:
+            // If Automation permission is unavailable, keeping a hidden
+            // browser alive can leave video audio playing with no window
+            // the child can close. Strict mode closes the browser until a
+            // parent grants supervision access in System Settings.
+            stop(application, at: now)
+        case .none:
+            break
         }
 
         let reportKey = "\(bundleIdentifier):\(host ?? "permission")"
-        if let lastReport = lastWebsiteReports[reportKey],
-           lastReport.reason == reason,
-           lastReport.mode == mode,
-           now.timeIntervalSince(lastReport.date) < reportCooldown {
-            return
+        let reportedRecently = lastWebsiteReports[reportKey].map {
+            $0.reason == reason
+                && $0.mode == mode
+                && now.timeIntervalSince($0.date) < reportCooldown
+        } ?? false
+        let responsePlan = ViolationResponsePlan.decide(reportedRecently: reportedRecently)
+        if responsePlan.notifyParent {
+            lastWebsiteReports[reportKey] = (reason, mode, now)
         }
-        lastWebsiteReports[reportKey] = (reason, mode, now)
-        onBlockedWebsite?(application, host, reason, mode)
+        if responsePlan.presentFocusShield {
+            onBlockedWebsite?(application, host, reason, mode, responsePlan.notifyParent)
+        }
+    }
+
+    private func stop(_ application: NSRunningApplication, at now: Date) {
+        _ = application.hide()
+        let processIdentifier = application.processIdentifier
+        if let requestedAt = terminationRequestedAt[processIdentifier],
+           now.timeIntervalSince(requestedAt) >= forceTerminationDelay {
+            _ = application.forceTerminate()
+            terminationRequestedAt.removeValue(forKey: processIdentifier)
+        } else {
+            _ = application.terminate()
+            terminationRequestedAt[processIdentifier] = terminationRequestedAt[processIdentifier] ?? now
+        }
     }
 
     private func clearWebsiteReports(bundleIdentifier: String) {

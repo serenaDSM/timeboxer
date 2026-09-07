@@ -93,10 +93,12 @@ private final class BrandMarkView: NSView {
 final class ShieldWindowController: NSWindowController {
     var onEarnTime: (() -> Void)?
     var onAskParent: (() -> Void)?
+    var onReturnToHomework: (() -> Void)?
 
     private let titleLabel = NSTextField(wrappingLabelWithString: "TIME IS UP")
     private let detailLabel = NSTextField(wrappingLabelWithString: "")
     private let applicationLabel = NSTextField(labelWithString: "")
+    private let alarmPlayer = FocusAlarmPlayer()
 
     init() {
         let initialFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
@@ -115,21 +117,28 @@ final class ShieldWindowController: NSWindowController {
         nil
     }
 
-    func show(applicationName: String, reason: BlockReason) {
+    func show(applicationName: String, reason: BlockReason, mode: EnforcementMode) {
         guard let window else { return }
-        titleLabel.stringValue = reason.title.uppercased()
-        detailLabel.stringValue = reason.detail
-        applicationLabel.stringValue = "\(applicationName) is paused by your family plan."
+        if mode.shouldTerminateEntertainment {
+            titleLabel.stringValue = reason.title.uppercased()
+            detailLabel.stringValue = reason.detail
+            applicationLabel.stringValue = "\(applicationName) is paused by your family plan."
+        } else {
+            titleLabel.stringValue = "PLAY TIME IS NOT ACTIVE"
+            detailLabel.stringValue = "This screen stays protected until you return to TimeBoxer, earn time, or ask your parent. The app remains open in the background."
+            applicationLabel.stringValue = "\(applicationName) triggered the family focus shield."
+        }
         if let screen = NSScreen.main {
             window.setFrame(screen.frame, display: true)
         }
+        alarmPlayer.start()
         showWindow(nil)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
     func showDemo() {
-        show(applicationName: "Demo game", reason: .dailyLimitReached)
+        show(applicationName: "Demo game", reason: .dailyLimitReached, mode: .observe)
     }
 
     @objc private func earnTime() {
@@ -141,10 +150,11 @@ final class ShieldWindowController: NSWindowController {
     }
 
     @objc private func returnToHomework() {
-        window?.orderOut(nil)
+        orderOutAndNotify(onReturnToHomework)
     }
 
     private func orderOutAndNotify(_ callback: (() -> Void)?) {
+        alarmPlayer.stop()
         window?.orderOut(nil)
         callback?()
     }
@@ -195,7 +205,7 @@ final class ShieldWindowController: NSWindowController {
 
         let earnButton = makeButton("Earn more time", action: #selector(earnTime), primary: true)
         let askButton = makeButton("Ask parent for 10 minutes", action: #selector(askParent), primary: false)
-        let homeworkButton = makeButton("Return to homework", action: #selector(returnToHomework), primary: false)
+        let homeworkButton = makeButton("Return to TimeBoxer", action: #selector(returnToHomework), primary: false)
 
         let messageStack = NSStackView(views: [titleLabel, applicationLabel, detailLabel])
         messageStack.orientation = .vertical

@@ -10,6 +10,25 @@ final class RuleEngineTests: XCTestCase {
         return calendar
     }
 
+    func testDefaultProtectionAlertsWithoutTerminatingEntertainment() {
+        let mode = FamilyPolicy.safeDefault.enforcementMode
+
+        XCTAssertEqual(mode, .observe)
+        XCTAssertFalse(mode.shouldTerminateEntertainment)
+        XCTAssertTrue(mode.sendsFamilyAlerts)
+        XCTAssertTrue(EnforcementMode.enforce.shouldTerminateEntertainment)
+    }
+
+    func testRepeatedAttemptAlwaysRestoresShieldButDeduplicatesParentAlert() {
+        let firstAttempt = ViolationResponsePlan.decide(reportedRecently: false)
+        let repeatedAttempt = ViolationResponsePlan.decide(reportedRecently: true)
+
+        XCTAssertTrue(firstAttempt.presentFocusShield)
+        XCTAssertTrue(firstAttempt.notifyParent)
+        XCTAssertTrue(repeatedAttempt.presentFocusShield)
+        XCTAssertFalse(repeatedAttempt.notifyParent)
+    }
+
     func testSelectsSchoolAndWeekendLimits() {
         let policy = FamilyPolicy.safeDefault
         let friday = makeDate(year: 2026, month: 8, day: 14, hour: 12)

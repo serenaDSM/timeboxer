@@ -2,7 +2,7 @@
 @preconcurrency import WebKit
 
 @MainActor
-final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKNavigationDelegate {
+final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKNavigationDelegate, NSWindowDelegate {
     enum ViewMode: String {
         case child
     }
@@ -14,6 +14,13 @@ final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKN
     private var hasStartedLoading = false
     private var isPageReady = false
     private var pendingEvents: [(type: String, payload: [String: Any])] = []
+    private var focusProtection = FocusProtectionSessionState()
+    private let focusAlarmPlayer = FocusAlarmPlayer()
+    private var focusProtectionArmedAt = Date.distantFuture
+    private var focusMonitorTimer: Timer?
+    private var focusRestoreScheduled = false
+    private var isFullscreenTransitionInProgress = false
+    private var isSystemSuspended = false
 
     init() {
         let contentController = WKUserContentController()
@@ -38,8 +45,52 @@ final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKN
         window.contentView = webView
 
         super.init(window: window)
+        window.delegate = self
         webView.navigationDelegate = self
         contentController.add(self, name: "timeboxer")
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidResignActive),
+            name: NSApplication.didResignActiveNotification,
+            object: NSApp
+        )
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemWillSuspend),
+            name: NSWorkspace.willSleepNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemWillSuspend),
+            name: NSWorkspace.screensDidSleepNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemWillSuspend),
+            name: NSWorkspace.sessionDidResignActiveNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemDidResume),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemDidResume),
+            name: NSWorkspace.screensDidWakeNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemDidResume),
+            name: NSWorkspace.sessionDidBecomeActiveNotification,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -68,6 +119,16 @@ final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKN
 
     func setFocusFullscreen(_ enabled: Bool) {
         guard let window else { return }
+        if enabled {
+            focusProtection.enable()
+            focusProtectionArmedAt = Date().addingTimeInterval(1.8)
+            isSystemSuspended = false
+            focusAlarmPlayer.stop()
+            startFocusMonitor()
+        } else {
+            disableFocusProtection()
+        }
+
         let isFullscreen = window.styleMask.contains(.fullScreen)
         guard enabled != isFullscreen else {
             if enabled {
@@ -76,7 +137,135 @@ final class WebWindowController: NSWindowController, WKScriptMessageHandler, WKN
             }
             return
         }
+        isFullscreenTransitionInProgress = true
         window.toggleFullScreen(nil)
+    }
+
+    func acknowledgeFocusReturn() {
+        guard focusProtection.isEnabled else { return }
+        guard
+            NSApp.isActive,
+            window?.styleMask.contains(.fullScreen) == true
+        else {
+            handleFocusViolation(reason: .focusNotRestored)
+            return
+        }
+        if focusProtection.acknowledgeReturn() {
+            focusAlarmPlayer.stop()
+        }
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        isFullscreenTransitionInProgress = false
+        if focusProtection.isEnabled {
+            focusProtectionArmedAt = Date()
+        }
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        isFullscreenTransitionInProgress = false
+        handleFocusViolation(reason: .leftFullscreen)
+    }
+
+    @objc private func applicationDidResignActive(_ notification: Notification) {
+        guard !isSystemSuspended else { return }
+        handleFocusViolation(reason: .applicationSwitch)
+    }
+
+    @objc private func checkFocusProtection() {
+        guard
+            focusProtection.isEnabled,
+            !isSystemSuspended,
+            !isFullscreenTransitionInProgress,
+            Date() >= focusProtectionArmedAt
+        else { return }
+        guard
+            NSApp.isActive,
+            window?.styleMask.contains(.fullScreen) == true
+        else {
+            handleFocusViolation(reason: .focusCheck)
+            return
+        }
+    }
+
+    @objc private func systemWillSuspend(_ notification: Notification) {
+        guard focusProtection.isEnabled else { return }
+        isSystemSuspended = true
+        let shouldNotifyWeb = focusProtection.recordViolation()
+        focusAlarmPlayer.stop()
+        if shouldNotifyWeb {
+            sendNativeEvent(
+                type: "focus-suspended",
+                payload: ["reason": FocusInterruptionReason.systemSuspension.rawValue]
+            )
+        }
+    }
+
+    @objc private func systemDidResume(_ notification: Notification) {
+        guard focusProtection.isEnabled else {
+            isSystemSuspended = false
+            return
+        }
+        isSystemSuspended = false
+        restoreProtectedWindow()
+    }
+
+    private func startFocusMonitor() {
+        guard focusMonitorTimer == nil else { return }
+        focusMonitorTimer = Timer.scheduledTimer(
+            timeInterval: 0.25,
+            target: self,
+            selector: #selector(checkFocusProtection),
+            userInfo: nil,
+            repeats: true
+        )
+    }
+
+    private func disableFocusProtection() {
+        focusProtection.disable()
+        focusProtectionArmedAt = .distantFuture
+        focusAlarmPlayer.stop()
+        focusMonitorTimer?.invalidate()
+        focusMonitorTimer = nil
+        focusRestoreScheduled = false
+        isFullscreenTransitionInProgress = false
+        isSystemSuspended = false
+    }
+
+    private func handleFocusViolation(reason: FocusInterruptionReason) {
+        guard
+            focusProtection.isEnabled,
+            !isSystemSuspended,
+            Date() >= focusProtectionArmedAt
+        else { return }
+        let shouldNotifyWeb = focusProtection.recordViolation()
+        if reason.shouldSoundAlarm {
+            focusAlarmPlayer.start()
+        } else {
+            focusAlarmPlayer.stop()
+        }
+        if shouldNotifyWeb {
+            sendNativeEvent(type: "focus-violation", payload: ["reason": reason.rawValue])
+        }
+        restoreProtectedWindow()
+    }
+
+    private func restoreProtectedWindow() {
+        guard !focusRestoreScheduled else { return }
+        focusRestoreScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            self.focusRestoreScheduled = false
+            guard self.focusProtection.isEnabled else { return }
+            self.showWindow(nil)
+            self.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            if self.window?.styleMask.contains(.fullScreen) != true,
+               !self.isFullscreenTransitionInProgress {
+                self.isFullscreenTransitionInProgress = true
+                self.window?.toggleFullScreen(nil)
+            }
+        }
     }
 
     private func deliverNativeEvent(type: String, payload: [String: Any]) {

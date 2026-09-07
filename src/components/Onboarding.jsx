@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Moon, Sparkles } from 'lucide-react';
+import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.js';
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.js';
+import Check from 'lucide-react/dist/esm/icons/check.js';
+import Moon from 'lucide-react/dist/esm/icons/moon.js';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles.js';
 import { getMaximumDailyLimit, POLICY_PRESETS } from '../policy.js';
 import BrandLogo from './BrandLogo.jsx';
 
